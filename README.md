@@ -6,4 +6,7 @@ This mod adds the ability to throw your equipped weapons and shields.
 All weapons and shields are supported, including mod-added ones. No patching needed.
 
 
-<p align="center"> <img src="https://i.imgur.com/SmXjTq6.gif" width="49%" alt="Telekinetic Throw"> <img src="https://i.imgur.com/k0XGyIc.gif" width="49%" alt="Telekinetic Throw"> </p>
+<p align="center">
+  <img src="images/throw1.gif" width="49%" alt="Telekinetic Throw">
+  <img src="images/throw2.gif" width="49%" alt="Telekinetic Throw">
+</p>
