@@ -426,7 +426,7 @@ namespace SaberThrow
 
     inline bool NeedsAnimBoundsFallback(RE::Actor& actor)
     {
-        if (actor.GetSitSleepState() != RE::SIT_SLEEP_STATE::kNormal) {
+        if (actor.AsActorState()->GetSitSleepState() != RE::SIT_SLEEP_STATE::kNormal) {
             return true;
         }
 
@@ -451,7 +451,8 @@ namespace SaberThrow
         const std::vector<RE::NiAVObject*>& ignore,
         RE::Actor** outHitActor,
         RE::TESObjectREFR** outHitRef,
-        RE::NiPoint3* outHitPos)
+        RE::NiPoint3* outHitPos,
+        float actorSweepRadius)
     {
         if (!caster) {
             return false;
@@ -496,7 +497,7 @@ namespace SaberThrow
                         radius = 52.0f;
                     }
 
-                    radius = std::clamp(radius + (kActorSweepRadius * 0.35f), 20.0f, 112.0f);
+                    radius = std::clamp(radius + (actorSweepRadius * 0.35f), 20.0f, 112.0f);
 
                     float fraction = 0.0f;
                     if (!GetSphereHitFraction(from, to, center, radius, fraction) ||
@@ -575,7 +576,10 @@ namespace SaberThrow
             return true;
         }
 
-        if (kActorSweepRadius <= 0.0f) {
+        const float r = caster == RE::PlayerCharacter::GetSingleton() ?
+            kActorSweepRadius * ::SaberThrow::Settings::Get().actorSweepRadiusMult :
+            kActorSweepRadius;
+        if (r <= 0.0f) {
             return false;
         }
 
@@ -585,7 +589,6 @@ namespace SaberThrow
             return false;
         }
 
-        const float r = kActorSweepRadius;
         const float d = r * 0.70710678f;
 
         const RE::NiPoint3 offsets[] = {
@@ -641,7 +644,8 @@ namespace SaberThrow
             ignore,
             outHitActor,
             outHitRef,
-            outHitPos);
+            outHitPos,
+            r);
     }
 
     inline RE::NiPoint3 TransformPoint(const RE::NiTransform& transform, const RE::NiPoint3& local)

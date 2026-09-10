@@ -682,7 +682,10 @@ namespace SaberThrow
             return false;
         }
 
-        if (kGroundSweepRadius <= 0.0f) {
+        const float r = caster == RE::PlayerCharacter::GetSingleton() ?
+            kGroundSweepRadius * ::SaberThrow::Settings::Get().groundSweepRadiusMult :
+            kGroundSweepRadius;
+        if (r <= 0.0f) {
             return true;
         }
 
@@ -692,7 +695,6 @@ namespace SaberThrow
             return true;
         }
 
-        const float r = kGroundSweepRadius;
         const float d = r * 0.70710678f;
 
         const RE::NiPoint3 offsets[] = {

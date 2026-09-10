@@ -1036,7 +1036,7 @@ namespace SaberThrow
 
         const float armorRating = std::max(0.0f, shield->GetArmorRating());
         const float blockSkill = player ?
-            std::clamp(player->GetActorValue(RE::ActorValue::kBlock), 0.0f, 100.0f) :
+            std::clamp(player->AsActorValueOwner()->GetActorValue(RE::ActorValue::kBlock), 0.0f, 100.0f) :
             0.0f;
 
         const float skill01 = blockSkill / 100.0f;

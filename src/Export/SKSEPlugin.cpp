@@ -5,7 +5,7 @@
 
 namespace
 {
-	constexpr REL::Version MIN_RUNTIME{ 1, 6, 1130, 0 };
+	constexpr REL::Version MIN_RUNTIME{ 1, 5, 97, 0 };
 
 	void InitializeLog()
 	{
@@ -18,9 +18,9 @@ namespace
 		auto sink = std::make_shared<spdlog::sinks::basic_file_sink_mt>(path->string(), true);
 
 #ifndef NDEBUG
-		const auto level = spdlog::level::debug;
+		const auto level = spdlog::level::warn;
 #else
-		const auto level = spdlog::level::info;
+		const auto level = spdlog::level::warn;
 #endif
 
 		auto log = std::make_shared<spdlog::logger>("global log"s, std::move(sink));
@@ -32,18 +32,13 @@ namespace
 	}
 }
 
-SKSEPluginVersion = []()
-	{
-		SKSE::PluginVersionData v{};
-
-		v.PluginVersion(REL::Version{ 1, 0, 0, 0 });
-		v.PluginName("SaberThrow"sv);
-		v.AuthorName("MadAborModding"sv);
-		v.UsesAddressLibrary();
-		v.UsesUpdatedStructs();
-
-		return v;
-	}();
+SKSEPluginInfo(
+	.Version = REL::Version{ 1, 0, 0, 0 },
+	.Name = "SaberThrow"sv,
+	.Author = "MadAborModding"sv,
+	.StructCompatibility = SKSE::StructCompatibility::Independent,
+	.RuntimeCompatibility = SKSE::VersionIndependence::AddressLibrary
+)
 
 static void MessageEventCallback(SKSE::MessagingInterface::Message* a_msg)
 {
@@ -73,14 +68,14 @@ static void MessageEventCallback(SKSE::MessagingInterface::Message* a_msg)
 
 SKSEPluginLoad(const SKSE::LoadInterface* a_skse)
 {
+	SKSE::Init(a_skse);
+
 	InitializeLog();
 
 	logger::info("================================================="sv);
 	logger::info("{} v{}"sv, Plugin::NAME, Plugin::VERSION.string());
 	logger::info("Author: MadAborModding"sv);
 	logger::info("================================================="sv);
-
-	SKSE::Init(a_skse);
 
 	const auto ver = a_skse->RuntimeVersion();
 	if (ver < MIN_RUNTIME) {

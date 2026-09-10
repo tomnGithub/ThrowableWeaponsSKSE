@@ -10,7 +10,7 @@ project(
 
 set_property(GLOBAL PROPERTY USE_FOLDERS ON)
 
-set(ENABLE_SKYRIM_SE OFF CACHE BOOL "Disable Skyrim SE support in CommonLibSSE-NG" FORCE)
+set(ENABLE_SKYRIM_SE ON CACHE BOOL "Enable Skyrim SE support in CommonLibSSE-NG" FORCE)
 set(ENABLE_SKYRIM_AE ON CACHE BOOL "Enable Skyrim AE support in CommonLibSSE-NG" FORCE)
 set(ENABLE_SKYRIM_VR OFF CACHE BOOL "Disable Skyrim VR support in CommonLibSSE-NG" FORCE)
 set(BUILD_TESTS OFF CACHE BOOL "Disable CommonLibSSE-NG tests" FORCE)
@@ -21,7 +21,7 @@ include(FetchContent)
 FetchContent_Declare(
     CommonLibSSE
     GIT_REPOSITORY https://github.com/alandtse/CommonLibSSE-NG.git
-    GIT_TAG e7863a71523a2896c92ea9d3105c0d121dcdba0d
+    GIT_TAG v7.5.1
     GIT_SHALLOW FALSE
     GIT_PROGRESS TRUE
     GIT_SUBMODULES_RECURSE TRUE
@@ -30,7 +30,7 @@ FetchContent_MakeAvailable(CommonLibSSE)
 
 set(COMMONLIB_IDDB_HEADER "${commonlibsse_SOURCE_DIR}/include/REL/IDDB.h")
 if(NOT EXISTS "${COMMONLIB_IDDB_HEADER}")
-    message(FATAL_ERROR "CommonLibSSE-NG 6.4.0 format-5 support is missing. Delete the build directory and configure again.")
+    message(FATAL_ERROR "CommonLibSSE-NG 7.5.1 format-5 support is missing. Delete the build directory and configure again.")
 endif()
 file(READ "${COMMONLIB_IDDB_HEADER}" COMMONLIB_IDDB_CONTENT)
 if(NOT COMMONLIB_IDDB_CONTENT MATCHES "SSEv5" OR NOT COMMONLIB_IDDB_CONTENT MATCHES "load_v5")

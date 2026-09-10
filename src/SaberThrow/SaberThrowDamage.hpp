@@ -326,7 +326,7 @@ namespace SaberThrow
             return false;
         }
 
-        auto* magicTarget = static_cast<RE::MagicTarget*>(target);
+        auto* magicTarget = target->AsMagicTarget();
         bool anyApplied = false;
 
         for (auto* effect : spell->effects) {
@@ -477,7 +477,7 @@ namespace SaberThrow
         }
 
         const float blockSkill = std::clamp(
-            player->GetActorValue(RE::ActorValue::kBlock),
+            player->AsActorValueOwner()->GetActorValue(RE::ActorValue::kBlock),
             0.0f,
             100.0f);
 
@@ -514,7 +514,7 @@ namespace SaberThrow
             : RE::ActorValue::kAlteration;
 
         const float skill = std::clamp(
-            player->GetActorValue(skillActorValue),
+            player->AsActorValueOwner()->GetActorValue(skillActorValue),
             0.0f,
             100.0f);
 
@@ -579,9 +579,9 @@ namespace SaberThrow
             return 0.0f;
         }
 
-        const float healthBefore = actor->GetActorValue(RE::ActorValue::kHealth);
+        const float healthBefore = actor->AsActorValueOwner()->GetActorValue(RE::ActorValue::kHealth);
         const bool didDamage = actor->DoDamage(damage, attacker, kIgnoreDifficulty);
-        const float healthAfter = actor->GetActorValue(RE::ActorValue::kHealth);
+        const float healthAfter = actor->AsActorValueOwner()->GetActorValue(RE::ActorValue::kHealth);
         (void)didDamage;
 
         return std::max(0.0f, healthBefore - healthAfter);
@@ -1104,7 +1104,7 @@ namespace SaberThrow
             return false;
         }
 
-        auto* magicTarget = static_cast<RE::MagicTarget*>(target);
+        auto* magicTarget = target->AsMagicTarget();
         bool anyApplied = false;
         std::uint32_t attempted = 0;
 
@@ -1153,7 +1153,7 @@ namespace SaberThrow
         }
 
         auto* enchantment = weapon->formEnchanting;
-        auto* magicTarget = static_cast<RE::MagicTarget*>(target);
+        auto* magicTarget = target->AsMagicTarget();
         bool anyApplied = false;
         std::uint32_t attempted = 0;
 
@@ -1203,7 +1203,7 @@ namespace SaberThrow
             return false;
         }
 
-        auto* magicTarget = static_cast<RE::MagicTarget*>(target);
+        auto* magicTarget = target->AsMagicTarget();
         auto* sourceWeapon = poisonState.sourceWeapon ? poisonState.sourceWeapon : fallbackWeapon;
 
         bool anyApplied = false;

@@ -10,6 +10,7 @@
 #include <SKSEMenuFramework.h>
 #include <SimpleIni.h>
 
+#include "SKSE/InputMap.h"
 #include "SKSE/SKSE.h"
 
 #include <algorithm>
@@ -55,7 +56,13 @@ namespace SaberThrow::Menu
         {
             None = 0,
             ThrowWeapon,
-            ThrowShield
+            ThrowWeaponModifier,
+            ThrowWeaponGamepad,
+            ThrowWeaponGamepadModifier,
+            ThrowShield,
+            ThrowShieldModifier,
+            ThrowShieldGamepad,
+            ThrowShieldGamepadModifier
         };
 
         inline std::atomic<HotkeyBindingTarget> g_hotkeyTarget{
@@ -390,11 +397,8 @@ namespace SaberThrow::Menu
                 !settings.weaponNeedsPerk ||
                 PlayerHasAnyThrowWeaponUnlockPerkMainThread(player, settings);
 
-            const bool shieldNeedsPerk = ReadIniOnlyBool(
-                "iThrowShieldRequiresPerk",
-                false);
             const bool needShieldSpell =
-                !shieldNeedsPerk ||
+                !settings.shieldNeedsPerk ||
                 PlayerHasConfiguredThrowShieldPerkMainThread(player, settings);
 
             auto* noReturnSpell =
@@ -559,56 +563,19 @@ namespace SaberThrow::Menu
             DrawHelp(help);
         }
 
-        struct HotkeyOption
-        {
-            std::uint32_t code;
-            const char* label;
-        };
-
-        inline constexpr std::array<HotkeyOption, 100> kHotkeyOptions{{
-            { 0x00, "Unbound" }, { 0x01, "Escape" },
-            { 0x02, "1" }, { 0x03, "2" }, { 0x04, "3" }, { 0x05, "4" },
-            { 0x06, "5" }, { 0x07, "6" }, { 0x08, "7" }, { 0x09, "8" },
-            { 0x0A, "9" }, { 0x0B, "0" }, { 0x0C, "Minus" }, { 0x0D, "Equals" },
-            { 0x0E, "Backspace" }, { 0x0F, "Tab" },
-            { 0x10, "Q" }, { 0x11, "W" }, { 0x12, "E" }, { 0x13, "R" },
-            { 0x14, "T" }, { 0x15, "Y" }, { 0x16, "U" }, { 0x17, "I" },
-            { 0x18, "O" }, { 0x19, "P" }, { 0x1A, "Left Bracket" }, { 0x1B, "Right Bracket" },
-            { 0x1C, "Enter" }, { 0x1D, "Left Ctrl" },
-            { 0x1E, "A" }, { 0x1F, "S" }, { 0x20, "D" }, { 0x21, "F" },
-            { 0x22, "G" }, { 0x23, "H" }, { 0x24, "J" }, { 0x25, "K" },
-            { 0x26, "L" }, { 0x27, "Semicolon" }, { 0x28, "Apostrophe" }, { 0x29, "Grave" },
-            { 0x2A, "Left Shift" }, { 0x2B, "Backslash" },
-            { 0x2C, "Z" }, { 0x2D, "X" }, { 0x2E, "C" }, { 0x2F, "V" },
-            { 0x30, "B" }, { 0x31, "N" }, { 0x32, "M" },
-            { 0x33, "Comma" }, { 0x34, "Period" }, { 0x35, "Slash" },
-            { 0x36, "Right Shift" }, { 0x37, "Numpad *" }, { 0x38, "Left Alt" },
-            { 0x39, "Space" }, { 0x3A, "Caps Lock" },
-            { 0x3B, "F1" }, { 0x3C, "F2" }, { 0x3D, "F3" }, { 0x3E, "F4" },
-            { 0x3F, "F5" }, { 0x40, "F6" }, { 0x41, "F7" }, { 0x42, "F8" },
-            { 0x43, "F9" }, { 0x44, "F10" }, { 0x45, "Num Lock" }, { 0x46, "Scroll Lock" },
-            { 0x47, "Numpad 7" }, { 0x48, "Numpad 8" }, { 0x49, "Numpad 9" },
-            { 0x4A, "Numpad -" }, { 0x4B, "Numpad 4" }, { 0x4C, "Numpad 5" },
-            { 0x4D, "Numpad 6" }, { 0x4E, "Numpad +" }, { 0x4F, "Numpad 1" },
-            { 0x50, "Numpad 2" }, { 0x51, "Numpad 3" }, { 0x52, "Numpad 0" },
-            { 0x53, "Numpad ." }, { 0x57, "F11" }, { 0x58, "F12" },
-            { 0x9C, "Numpad Enter" }, { 0x9D, "Right Ctrl" }, { 0xB5, "Numpad /" },
-            { 0xB8, "Right Alt" }, { 0xC7, "Home" }, { 0xC8, "Up Arrow" },
-            { 0xC9, "Page Up" }, { 0xCB, "Left Arrow" }, { 0xCD, "Right Arrow" },
-            { 0xCF, "End" }, { 0xD0, "Down Arrow" }, { 0xD1, "Page Down" },
-            { 0xD2, "Insert" }, { 0xD3, "Delete" }
-        }};
-
         inline std::string GetHotkeyLabel(std::uint32_t code)
         {
-            for (const auto& option : kHotkeyOptions) {
-                if (option.code == code) {
-                    return option.label;
-                }
+            if (code == 0) {
+                return "Unbound";
+            }
+
+            const auto label = SKSE::InputMap::GetKeyName(code);
+            if (!label.empty()) {
+                return label;
             }
 
             char buffer[32]{};
-            std::snprintf(buffer, sizeof(buffer), "Key 0x%02X", code);
+            std::snprintf(buffer, sizeof(buffer), "Key 0x%X", code);
             return buffer;
         }
 
@@ -616,8 +583,7 @@ namespace SaberThrow::Menu
         {
             const auto target =
                 g_hotkeyTarget.load(std::memory_order_acquire);
-            if (target == HotkeyBindingTarget::None || !event ||
-                event->GetDevice() != RE::INPUT_DEVICE::kKeyboard) {
+            if (target == HotkeyBindingTarget::None || !event) {
                 return false;
             }
 
@@ -626,9 +592,40 @@ namespace SaberThrow::Menu
                 return false;
             }
 
-            g_pendingKeyCode.store(
-                button->GetIDCode(),
-                std::memory_order_relaxed);
+            const bool gamepadTarget =
+                target == HotkeyBindingTarget::ThrowWeaponGamepad ||
+                target == HotkeyBindingTarget::ThrowWeaponGamepadModifier ||
+                target == HotkeyBindingTarget::ThrowShieldGamepad ||
+                target == HotkeyBindingTarget::ThrowShieldGamepadModifier;
+
+            std::uint32_t code = button->GetIDCode();
+            switch (event->GetDevice()) {
+            case RE::INPUT_DEVICE::kKeyboard:
+                if (gamepadTarget) {
+                    return false;
+                }
+                break;
+            case RE::INPUT_DEVICE::kMouse:
+                if (gamepadTarget) {
+                    return false;
+                }
+                code += SKSE::InputMap::kMacro_MouseButtonOffset;
+                break;
+            case RE::INPUT_DEVICE::kGamepad:
+                if (!gamepadTarget) {
+                    return false;
+                }
+                code = SKSE::InputMap::GamepadMaskToKeycode(code);
+                break;
+            default:
+                return false;
+            }
+
+            if (code >= SKSE::InputMap::kMaxMacros) {
+                return false;
+            }
+
+            g_pendingKeyCode.store(code, std::memory_order_relaxed);
             g_pendingHotkey.store(
                 target,
                 std::memory_order_release);
@@ -654,8 +651,26 @@ namespace SaberThrow::Menu
             case HotkeyBindingTarget::ThrowWeapon:
                 PersistUInt32("iThrowWeaponHotkey", code);
                 break;
+            case HotkeyBindingTarget::ThrowWeaponModifier:
+                PersistUInt32("iThrowWeaponHotkeyModifier", code);
+                break;
+            case HotkeyBindingTarget::ThrowWeaponGamepad:
+                PersistUInt32("iThrowWeaponGamepadHotkey", code);
+                break;
+            case HotkeyBindingTarget::ThrowWeaponGamepadModifier:
+                PersistUInt32("iThrowWeaponGamepadHotkeyModifier", code);
+                break;
             case HotkeyBindingTarget::ThrowShield:
                 PersistUInt32("iThrowShieldHotkey", code);
+                break;
+            case HotkeyBindingTarget::ThrowShieldModifier:
+                PersistUInt32("iThrowShieldHotkeyModifier", code);
+                break;
+            case HotkeyBindingTarget::ThrowShieldGamepad:
+                PersistUInt32("iThrowShieldGamepadHotkey", code);
+                break;
+            case HotkeyBindingTarget::ThrowShieldGamepadModifier:
+                PersistUInt32("iThrowShieldGamepadHotkeyModifier", code);
                 break;
             case HotkeyBindingTarget::None:
             default:
@@ -675,7 +690,7 @@ namespace SaberThrow::Menu
 
             std::string buttonLabel = label;
             buttonLabel += ": ";
-            buttonLabel += capturing ? "Press a key..." : GetHotkeyLabel(currentValue);
+            buttonLabel += capturing ? "Press a key or button..." : GetHotkeyLabel(currentValue);
             buttonLabel += "##";
             buttonLabel += key;
 
@@ -726,7 +741,7 @@ namespace SaberThrow::Menu
                 damage,
                 0.0f,
                 10.0f,
-                0.1f,
+                0.05f,
                 "%.2fx",
                 damageHelp.c_str());
             DrawSlider(
@@ -735,7 +750,7 @@ namespace SaberThrow::Menu
                 speed,
                 0.0f,
                 10.0f,
-                0.1f,
+                0.05f,
                 "%.2fx",
                 speedHelp.c_str());
             DrawSlider(
@@ -744,7 +759,7 @@ namespace SaberThrow::Menu
                 distance,
                 0.0f,
                 10.0f,
-                0.1f,
+                0.05f,
                 "%.2fx",
                 distanceHelp.c_str());
             DrawSlider(
@@ -753,7 +768,7 @@ namespace SaberThrow::Menu
                 stamina,
                 0.0f,
                 10.0f,
-                0.1f,
+                0.05f,
                 "%.2fx",
                 staminaHelp.c_str());
         }
@@ -873,7 +888,7 @@ namespace SaberThrow::Menu
                 settings.weaponSpinMult,
                 0.0f,
                 10.0f,
-                0.1f,
+                0.05f,
                 "%.2fx",
                 "Multiplies Throw Weapon spin speed. Set to 0 for no spin.");
             DrawOrientationDropdown(
@@ -898,7 +913,7 @@ namespace SaberThrow::Menu
                 settings.archeryDamage0,
                 0.25f,
                 4.0f,
-                0.1f,
+                0.05f,
                 "%.2fx",
                 "Damage multiplier applied to thrown weapon hits when Archery is 0. The "
                 "multiplier blends from this value to the 100 Archery value as Archery "
@@ -910,7 +925,7 @@ namespace SaberThrow::Menu
                 settings.archeryDamage100,
                 0.25f,
                 4.0f,
-                0.1f,
+                0.05f,
                 "%.2fx",
                 "Damage multiplier applied to thrown weapon hits when Archery is 100. The "
                 "multiplier blends from the 0 Archery value to this value as Archery increases. "
@@ -949,39 +964,39 @@ namespace SaberThrow::Menu
             const auto settings = Settings::Get();
 
             DrawHeader("Unlock Requirements");
-            DrawIniOnlyToggle(
+            DrawToggle(
                 "iThrowShieldRequiresPerk",
                 "Throw Shield Requires Perk",
-                false,
+                settings.shieldNeedsPerk,
                 "When enabled, the Throw Shield power must be unlocked by the perk configured "
                 "in madSaberThrow.ini. The default perk is Disarming Bash (Block).");
 
             DrawHeader("Shield Multipliers");
             DrawSlider("fDamageShield", "Damage Multiplier", settings.damageShield,
-                0.0f, 10.0f, 0.1f, "%.2fx",
+                0.0f, 10.0f, 0.05f, "%.2fx",
                 "Damage multiplier for thrown shields.");
             DrawSlider("fSpeedShield", "Speed Multiplier", settings.speedShield,
-                0.0f, 10.0f, 0.1f, "%.2fx",
+                0.0f, 10.0f, 0.05f, "%.2fx",
                 "Speed multiplier for thrown shields.");
             DrawSlider("fDistanceShield", "Distance Multiplier", settings.distanceShield,
-                0.0f, 10.0f, 0.1f, "%.2fx",
+                0.0f, 10.0f, 0.05f, "%.2fx",
                 "Distance multiplier for thrown shields.");
             DrawSlider("fStaminaShield", "Stamina Cost Multiplier", settings.staminaShield,
-                0.0f, 10.0f, 0.1f, "%.2fx",
+                0.0f, 10.0f, 0.05f, "%.2fx",
                 "Multiplier applied to the stamina cost of throwing a shield.");
 
             DrawHeader("Torch Multipliers");
             DrawSlider("fDamageTorch", "Damage Multiplier", settings.damageTorch,
-                0.0f, 10.0f, 0.1f, "%.2fx",
+                0.0f, 10.0f, 0.05f, "%.2fx",
                 "Damage multiplier for thrown torches.");
             DrawSlider("fSpeedTorch", "Speed Multiplier", settings.speedTorch,
-                0.0f, 10.0f, 0.1f, "%.2fx",
+                0.0f, 10.0f, 0.05f, "%.2fx",
                 "Speed multiplier for thrown torches.");
             DrawSlider("fDistanceTorch", "Distance Multiplier", settings.distanceTorch,
-                0.0f, 10.0f, 0.1f, "%.2fx",
+                0.0f, 10.0f, 0.05f, "%.2fx",
                 "Distance multiplier for thrown torches.");
             DrawSlider("fStaminaTorch", "Stamina Cost Multiplier", settings.staminaTorch,
-                0.0f, 10.0f, 0.1f, "%.2fx",
+                0.0f, 10.0f, 0.05f, "%.2fx",
                 "Multiplier applied to the stamina cost of throwing a torch.");
 
             DrawHeader("Stagger");
@@ -1027,7 +1042,7 @@ namespace SaberThrow::Menu
                 settings.telekSpinMult,
                 0.0f,
                 10.0f,
-                0.1f,
+                0.05f,
                 "%.2fx",
                 "Multiplies Telekinetic Throw spin speed. Set to 0 for no spin.");
             DrawOrientationDropdown(
@@ -1051,7 +1066,7 @@ namespace SaberThrow::Menu
                 settings.altDamage0,
                 0.25f,
                 4.0f,
-                0.1f,
+                0.05f,
                 "%.2fx",
                 "Damage multiplier applied to thrown weapon hits when Alteration is 0. The "
                 "multiplier blends from this value to the 100 Alteration value as Alteration "
@@ -1063,7 +1078,7 @@ namespace SaberThrow::Menu
                 settings.altDamage100,
                 0.25f,
                 4.0f,
-                0.1f,
+                0.05f,
                 "%.2fx",
                 "Damage multiplier applied to thrown weapon hits when Alteration is 100. The "
                 "multiplier blends from the 0 Alteration value to this value as Alteration "
@@ -1102,19 +1117,57 @@ namespace SaberThrow::Menu
         {
             ApplyPendingHotkeyBinding();
             const auto settings = Settings::Get();
+            const auto gamepadHotkeys = Settings::GetGamepadHotkeys();
 
             DrawHeader("Throw Weapon");
+            ImGuiMCP::SeparatorText("Keyboard / Mouse");
             DrawToggle(
                 "iThrowWeaponHotkeyEnabled",
                 "Enable Hotkey",
                 settings.weaponHotkeyOn,
-                "Enables Hotkey for Throw Weapon");
+                "Enables the keyboard and mouse hotkey for Throw Weapon.");
             DrawHotkeyBinding(
                 "iThrowWeaponHotkey",
                 "Hotkey",
                 settings.weaponHotkey,
                 HotkeyBindingTarget::ThrowWeapon,
-                "Key to bind.");
+                "Keyboard key or mouse button to bind.");
+            DrawToggle(
+                "iThrowWeaponHotkeyUseModifier",
+                "Use Modifier",
+                settings.weaponHotkeyUseModifier,
+                "Requires the configured modifier to be held when using the hotkey.");
+            DrawHotkeyBinding(
+                "iThrowWeaponHotkeyModifier",
+                "Modifier",
+                settings.weaponHotkeyModifier,
+                HotkeyBindingTarget::ThrowWeaponModifier,
+                "Keyboard key or mouse button that must be held.");
+
+            ImGuiMCP::SeparatorText("Gamepad");
+            DrawToggle(
+                "iThrowWeaponGamepadHotkeyEnabled",
+                "Enable Hotkey",
+                gamepadHotkeys.weaponHotkeyOn,
+                "Enables the gamepad hotkey for Throw Weapon.");
+            DrawHotkeyBinding(
+                "iThrowWeaponGamepadHotkey",
+                "Hotkey",
+                gamepadHotkeys.weaponHotkey,
+                HotkeyBindingTarget::ThrowWeaponGamepad,
+                "Gamepad button to bind.");
+            DrawToggle(
+                "iThrowWeaponGamepadHotkeyUseModifier",
+                "Use Modifier",
+                gamepadHotkeys.weaponHotkeyUseModifier,
+                "Requires the configured gamepad modifier to be held when using the hotkey.");
+            DrawHotkeyBinding(
+                "iThrowWeaponGamepadHotkeyModifier",
+                "Modifier",
+                gamepadHotkeys.weaponHotkeyModifier,
+                HotkeyBindingTarget::ThrowWeaponGamepadModifier,
+                "Gamepad button that must be held.");
+
             DrawToggle(
                 "iThrowWeaponHotkeyReturnOnHit",
                 "Return on Hit",
@@ -1123,17 +1176,78 @@ namespace SaberThrow::Menu
                 "while retaining the Throw Weapon spell's normal stamina and perk checks.");
 
             DrawHeader("Shield Throw");
+            ImGuiMCP::SeparatorText("Keyboard / Mouse");
             DrawToggle(
                 "iThrowShieldHotkeyEnabled",
                 "Enable Hotkey",
                 settings.shieldHotkeyOn,
-                "Enables Hotkey for Throw Shield");
+                "Enables the keyboard and mouse hotkey for Throw Shield.");
             DrawHotkeyBinding(
                 "iThrowShieldHotkey",
                 "Hotkey",
                 settings.shieldHotkey,
                 HotkeyBindingTarget::ThrowShield,
-                "Key to bind.");
+                "Keyboard key or mouse button to bind.");
+            DrawToggle(
+                "iThrowShieldHotkeyUseModifier",
+                "Use Modifier",
+                settings.shieldHotkeyUseModifier,
+                "Requires the configured modifier to be held when using the hotkey.");
+            DrawHotkeyBinding(
+                "iThrowShieldHotkeyModifier",
+                "Modifier",
+                settings.shieldHotkeyModifier,
+                HotkeyBindingTarget::ThrowShieldModifier,
+                "Keyboard key or mouse button that must be held.");
+
+            ImGuiMCP::SeparatorText("Gamepad");
+            DrawToggle(
+                "iThrowShieldGamepadHotkeyEnabled",
+                "Enable Hotkey",
+                gamepadHotkeys.shieldHotkeyOn,
+                "Enables the gamepad hotkey for Throw Shield.");
+            DrawHotkeyBinding(
+                "iThrowShieldGamepadHotkey",
+                "Hotkey",
+                gamepadHotkeys.shieldHotkey,
+                HotkeyBindingTarget::ThrowShieldGamepad,
+                "Gamepad button to bind.");
+            DrawToggle(
+                "iThrowShieldGamepadHotkeyUseModifier",
+                "Use Modifier",
+                gamepadHotkeys.shieldHotkeyUseModifier,
+                "Requires the configured gamepad modifier to be held when using the hotkey.");
+            DrawHotkeyBinding(
+                "iThrowShieldGamepadHotkeyModifier",
+                "Modifier",
+                gamepadHotkeys.shieldHotkeyModifier,
+                HotkeyBindingTarget::ThrowShieldGamepadModifier,
+                "Gamepad button that must be held.");
+        }
+
+        inline void __stdcall RenderHitbox()
+        {
+            const auto settings = Settings::Get();
+
+            DrawHeader("Hitbox Multipliers");
+            DrawSlider(
+                "fActorSweepRadiusMultiplier",
+                "Weapon Hitbox vs NPCs Multiplier",
+                settings.actorSweepRadiusMult,
+                0.0f,
+                10.0f,
+                0.05f,
+                "%.2fx",
+                "Adjust this to make the weapon's hitbox vs NPCs larger or smaller");
+            DrawSlider(
+                "fGroundSweepRadiusMultiplier",
+                "Weapon Hitbox vs Static Objects Multiplier",
+                settings.groundSweepRadiusMult,
+                0.0f,
+                10.0f,
+                0.05f,
+                "%.2fx",
+                "Adjust this to make the weapon's hitbox vs static objects and the ground larger or smaller");
         }
 
         inline void __stdcall RenderHeadAndLimbs()
@@ -1147,7 +1261,7 @@ namespace SaberThrow::Menu
                 settings.headshotMult,
                 0.0f,
                 100.0f,
-                0.1f,
+                0.05f,
                 "%.2fx",
                 "Thrown weapon headshot damage multiplier, 1.0 = normal damage, 2.0 = double "
                 "damage.");
@@ -1194,7 +1308,7 @@ namespace SaberThrow::Menu
                 settings.weaponXPMult,
                 0.0f,
                 100.0f,
-                0.1f,
+                0.05f,
                 "%.2fx",
                 "Multiplier applied to weapon skill experience from thrown weapon hits. 1.0 = "
                 "normal XP, 0.5 = half XP, 2.0 = double XP.");
@@ -1204,7 +1318,7 @@ namespace SaberThrow::Menu
                 settings.archeryXPMult,
                 0.0f,
                 100.0f,
-                0.1f,
+                0.05f,
                 "%.2fx",
                 "Multiplier applied to Archery experience from thrown weapon hits. 1.0 = normal "
                 "XP, 0.5 = half XP, 2.0 = double XP.");
@@ -1298,7 +1412,6 @@ namespace SaberThrow::Menu
 
         ::SaberThrow::SetInvLoadObserver(
             &Detail::RefreshPlayerThrowPowerSpellsMainThread);
-        Detail::QueuePlayerThrowPowerSpellRefresh();
 
         if (!SKSEMenuFramework::IsInstalled() || !GetMenuFrameworkModule()) {
             Detail::g_registered.store(false);
@@ -1314,6 +1427,7 @@ namespace SaberThrow::Menu
         SKSEMenuFramework::AddSectionItem("Throw Shield", Detail::RenderThrowShield);
         SKSEMenuFramework::AddSectionItem("Telekinetic Throw", Detail::RenderTelekineticThrow);
         SKSEMenuFramework::AddSectionItem("Hotkeys", Detail::RenderHotkeys);
+        SKSEMenuFramework::AddSectionItem("Hitbox", Detail::RenderHitbox);
         SKSEMenuFramework::AddSectionItem("Head & Limbs", Detail::RenderHeadAndLimbs);
         SKSEMenuFramework::AddSectionItem("Experience", Detail::RenderExperience);
         SKSEMenuFramework::AddSectionItem("Aiming", Detail::RenderAiming);

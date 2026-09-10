@@ -36,6 +36,9 @@ namespace SaberThrow::Settings
         float noReturnSpeed{ 3.0f };
         float noReturnDist{ 1800.0f };
 
+        float actorSweepRadiusMult{ 1.0f };
+        float groundSweepRadiusMult{ 1.0f };
+
         float weaponSpinMult{ 1.0f };
         float telekSpinMult{ 1.0f };
         ThrowOrientation weaponOrient{ ThrowOrientation::Vertical };
@@ -43,9 +46,13 @@ namespace SaberThrow::Settings
 
         bool weaponHotkeyOn{ false };
         std::uint32_t weaponHotkey{ 0 };
+        bool weaponHotkeyUseModifier{ false };
+        std::uint32_t weaponHotkeyModifier{ 0 };
         bool returnOnHit{ false };
         bool shieldHotkeyOn{ false };
         std::uint32_t shieldHotkey{ 0 };
+        bool shieldHotkeyUseModifier{ false };
+        std::uint32_t shieldHotkeyModifier{ 0 };
 
         float npcDamageMult{ 1.0f };
         float npcSpeedMult{ 1.0f };
@@ -153,6 +160,7 @@ namespace SaberThrow::Settings
             { 0x052D52, "Skyrim.esm" }
         };
 
+        bool shieldNeedsPerk{ false };
         std::uint32_t shieldPerkID{ 0x058F66 };
         std::string shieldPerkPlugin{ "Skyrim.esm" };
 
@@ -204,7 +212,20 @@ namespace SaberThrow::Settings
         float dismemberMaxDist{ 384.0f };
     };
 
+    struct GamepadHotkeys
+    {
+        bool weaponHotkeyOn{ false };
+        std::uint32_t weaponHotkey{ 0 };
+        bool weaponHotkeyUseModifier{ true };
+        std::uint32_t weaponHotkeyModifier{ 0 };
+        bool shieldHotkeyOn{ false };
+        std::uint32_t shieldHotkey{ 0 };
+        bool shieldHotkeyUseModifier{ true };
+        std::uint32_t shieldHotkeyModifier{ 0 };
+    };
+
     void LoadMCMSettings();
 
     Values Get();
+    GamepadHotkeys GetGamepadHotkeys();
 }

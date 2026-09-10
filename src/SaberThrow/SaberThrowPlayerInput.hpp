@@ -2,6 +2,8 @@
 
 #include "SaberThrow/SaberThrowEquipment.hpp"
 
+#include "SKSE/InputMap.h"
+
 namespace SaberThrow
 {
     inline constexpr float kDefaultSnapDist = 1.8f;
@@ -1363,7 +1365,7 @@ namespace SaberThrow
         }
 
         auto* spell = GetThrowTriggerSpell(localFormID);
-        auto* magicTarget = sourceActor->GetMagicTarget();
+        auto* magicTarget = sourceActor->AsMagicTarget();
         auto* activeEffects = magicTarget ? magicTarget->GetActiveEffectList() : nullptr;
         if (!spell || !activeEffects) {
             return false;
@@ -1478,7 +1480,7 @@ namespace SaberThrow
             return;
         }
 
-        auto* selectedPower = static_cast<RE::Actor*>(player)->selectedPower;
+        auto* selectedPower = player->GetActorRuntimeData().selectedPower;
         if (!selectedPower) {
             return;
         }
@@ -1708,7 +1710,7 @@ namespace SaberThrow
             return true;
         }
 
-        const float stamina = player->GetActorValue(RE::ActorValue::kStamina);
+        const float stamina = player->AsActorValueOwner()->GetActorValue(RE::ActorValue::kStamina);
         if (stamina + 0.001f < staminaCost) {
             SKSE::log::debug(
                 "[SaberThrow] player spell-cast trigger '{}' ignored: stamina {}/{} is too low.",
@@ -1736,13 +1738,13 @@ namespace SaberThrow
             return true;
         }
 
-        const float stamina = player->GetActorValue(RE::ActorValue::kStamina);
+        const float stamina = player->AsActorValueOwner()->GetActorValue(RE::ActorValue::kStamina);
 
-        player->DamageActorValue(
+        player->AsActorValueOwner()->DamageActorValue(
             RE::ActorValue::kStamina,
             staminaCost);
 
-        const float staminaAfter = player->GetActorValue(RE::ActorValue::kStamina);
+        const float staminaAfter = player->AsActorValueOwner()->GetActorValue(RE::ActorValue::kStamina);
         SKSE::log::debug(
             "[SaberThrow] player spell-cast trigger '{}' consumed {} stamina after animation trigger: {} -> {}.",
             reason ? reason : "unknown",
@@ -1827,6 +1829,23 @@ namespace SaberThrow
         if (requireShield &&
             !HasThrowSpellShield(player, reason)) {
             return false;
+        }
+
+        if (requireShield && settings.shieldNeedsPerk) {
+            auto* dataHandler = RE::TESDataHandler::GetSingleton();
+            auto* perk = dataHandler ?
+                dataHandler->LookupForm<RE::BGSPerk>(
+                    settings.shieldPerkID,
+                    settings.shieldPerkPlugin) :
+                nullptr;
+            if (!perk || !player->HasPerk(perk)) {
+                SKSE::log::debug(
+                    "[SaberThrow] player spell-cast trigger '{}' ignored: missing configured shield throw perk 0x{:08X}/'{}'.",
+                    reason ? reason : "unknown",
+                    settings.shieldPerkID,
+                    settings.shieldPerkPlugin);
+                return false;
+            }
         }
 
         if (checkStamina) {
@@ -2263,6 +2282,11 @@ namespace SaberThrow
             true);
     }
 
+    inline std::atomic_uint32_t g_weaponHotkeyModifierDown{ 0 };
+    inline std::atomic_uint32_t g_weaponGamepadHotkeyModifierDown{ 0 };
+    inline std::atomic_uint32_t g_shieldHotkeyModifierDown{ 0 };
+    inline std::atomic_uint32_t g_shieldGamepadHotkeyModifierDown{ 0 };
+
     class SaberThrowHotkeyInputEventSink final : public RE::BSTEventSink<RE::InputEvent*>
     {
     public:
@@ -2277,36 +2301,138 @@ namespace SaberThrow
             auto* ui = RE::UI::GetSingleton();
             if (ui && (ui->GameIsPaused() || ui->IsItemMenuOpen() ||
                           ui->IsModalMenuOpen() || ui->IsApplicationMenuOpen())) {
+                g_weaponHotkeyModifierDown.store(0, std::memory_order_release);
+                g_weaponGamepadHotkeyModifierDown.store(0, std::memory_order_release);
+                g_shieldHotkeyModifierDown.store(0, std::memory_order_release);
+                g_shieldGamepadHotkeyModifierDown.store(0, std::memory_order_release);
                 return RE::BSEventNotifyControl::kContinue;
             }
 
             const auto settings = ::SaberThrow::Settings::Get();
-            if (!settings.weaponHotkeyOn && !settings.shieldHotkeyOn) {
+            const auto gamepadHotkeys = ::SaberThrow::Settings::GetGamepadHotkeys();
+            if (!settings.weaponHotkeyOn ||
+                !settings.weaponHotkeyUseModifier ||
+                settings.weaponHotkeyModifier == 0) {
+                g_weaponHotkeyModifierDown.store(0, std::memory_order_release);
+            }
+            if (!gamepadHotkeys.weaponHotkeyOn ||
+                !gamepadHotkeys.weaponHotkeyUseModifier ||
+                gamepadHotkeys.weaponHotkeyModifier == 0) {
+                g_weaponGamepadHotkeyModifierDown.store(0, std::memory_order_release);
+            }
+            if (!settings.shieldHotkeyOn ||
+                !settings.shieldHotkeyUseModifier ||
+                settings.shieldHotkeyModifier == 0) {
+                g_shieldHotkeyModifierDown.store(0, std::memory_order_release);
+            }
+            if (!gamepadHotkeys.shieldHotkeyOn ||
+                !gamepadHotkeys.shieldHotkeyUseModifier ||
+                gamepadHotkeys.shieldHotkeyModifier == 0) {
+                g_shieldGamepadHotkeyModifierDown.store(0, std::memory_order_release);
+            }
+            if (!settings.weaponHotkeyOn && !gamepadHotkeys.weaponHotkeyOn &&
+                !settings.shieldHotkeyOn && !gamepadHotkeys.shieldHotkeyOn) {
                 return RE::BSEventNotifyControl::kContinue;
             }
 
             for (auto* inputEvent = *events; inputEvent; inputEvent = inputEvent->next) {
-                if (inputEvent->GetEventType() != RE::INPUT_EVENT_TYPE::kButton ||
-                    inputEvent->GetDevice() != RE::INPUT_DEVICE::kKeyboard) {
+                if (inputEvent->GetEventType() != RE::INPUT_EVENT_TYPE::kButton) {
                     continue;
                 }
 
                 const auto* buttonEvent = inputEvent->AsButtonEvent();
-                if (!buttonEvent || !buttonEvent->IsDown()) {
+                if (!buttonEvent || (!buttonEvent->IsDown() && !buttonEvent->IsUp())) {
                     continue;
                 }
 
-                const std::uint32_t keyCode = buttonEvent->GetIDCode();
-                if (settings.weaponHotkeyOn &&
+                const bool gamepad = inputEvent->GetDevice() == RE::INPUT_DEVICE::kGamepad;
+                std::uint32_t keyCode = buttonEvent->GetIDCode();
+                switch (inputEvent->GetDevice()) {
+                case RE::INPUT_DEVICE::kKeyboard:
+                    break;
+                case RE::INPUT_DEVICE::kMouse:
+                    keyCode += SKSE::InputMap::kMacro_MouseButtonOffset;
+                    break;
+                case RE::INPUT_DEVICE::kGamepad:
+                    keyCode = SKSE::InputMap::GamepadMaskToKeycode(keyCode);
+                    break;
+                default:
+                    continue;
+                }
+
+                if (keyCode >= SKSE::InputMap::kMaxMacros) {
+                    continue;
+                }
+
+                if (!gamepad && settings.weaponHotkeyUseModifier &&
+                    keyCode == settings.weaponHotkeyModifier) {
+                    g_weaponHotkeyModifierDown.store(
+                        buttonEvent->IsDown() ? keyCode : 0,
+                        std::memory_order_release);
+                }
+                if (gamepad && gamepadHotkeys.weaponHotkeyUseModifier &&
+                    keyCode == gamepadHotkeys.weaponHotkeyModifier) {
+                    g_weaponGamepadHotkeyModifierDown.store(
+                        buttonEvent->IsDown() ? keyCode : 0,
+                        std::memory_order_release);
+                }
+                if (!gamepad && settings.shieldHotkeyUseModifier &&
+                    keyCode == settings.shieldHotkeyModifier) {
+                    g_shieldHotkeyModifierDown.store(
+                        buttonEvent->IsDown() ? keyCode : 0,
+                        std::memory_order_release);
+                }
+                if (gamepad && gamepadHotkeys.shieldHotkeyUseModifier &&
+                    keyCode == gamepadHotkeys.shieldHotkeyModifier) {
+                    g_shieldGamepadHotkeyModifierDown.store(
+                        buttonEvent->IsDown() ? keyCode : 0,
+                        std::memory_order_release);
+                }
+
+                if (!buttonEvent->IsDown()) {
+                    continue;
+                }
+
+                if (!gamepad && settings.weaponHotkeyOn &&
                     settings.weaponHotkey != 0 &&
-                    keyCode == settings.weaponHotkey) {
+                    keyCode == settings.weaponHotkey &&
+                    (!settings.weaponHotkeyUseModifier ||
+                        (settings.weaponHotkeyModifier != 0 &&
+                            g_weaponHotkeyModifierDown.load(std::memory_order_acquire) ==
+                                settings.weaponHotkeyModifier))) {
                     TriggerWeaponHotkey(settings);
                     break;
                 }
 
-                if (settings.shieldHotkeyOn &&
+                if (gamepad && gamepadHotkeys.weaponHotkeyOn &&
+                    gamepadHotkeys.weaponHotkey != 0 &&
+                    keyCode == gamepadHotkeys.weaponHotkey &&
+                    (!gamepadHotkeys.weaponHotkeyUseModifier ||
+                        (gamepadHotkeys.weaponHotkeyModifier != 0 &&
+                            g_weaponGamepadHotkeyModifierDown.load(std::memory_order_acquire) ==
+                                gamepadHotkeys.weaponHotkeyModifier))) {
+                    TriggerWeaponHotkey(settings);
+                    break;
+                }
+
+                if (!gamepad && settings.shieldHotkeyOn &&
                     settings.shieldHotkey != 0 &&
-                    keyCode == settings.shieldHotkey) {
+                    keyCode == settings.shieldHotkey &&
+                    (!settings.shieldHotkeyUseModifier ||
+                        (settings.shieldHotkeyModifier != 0 &&
+                            g_shieldHotkeyModifierDown.load(std::memory_order_acquire) ==
+                                settings.shieldHotkeyModifier))) {
+                    TriggerShieldHotkey(settings);
+                    break;
+                }
+
+                if (gamepad && gamepadHotkeys.shieldHotkeyOn &&
+                    gamepadHotkeys.shieldHotkey != 0 &&
+                    keyCode == gamepadHotkeys.shieldHotkey &&
+                    (!gamepadHotkeys.shieldHotkeyUseModifier ||
+                        (gamepadHotkeys.shieldHotkeyModifier != 0 &&
+                            g_shieldGamepadHotkeyModifierDown.load(std::memory_order_acquire) ==
+                                gamepadHotkeys.shieldHotkeyModifier))) {
                     TriggerShieldHotkey(settings);
                     break;
                 }
@@ -2334,13 +2460,13 @@ namespace SaberThrow
         if (!inputManager) {
             g_hotkeyInstalled.store(false, std::memory_order_release);
             SKSE::log::warn(
-                "[SaberThrow] failed to install keyboard hotkey input sink: no BSInputDeviceManager.");
+                "[SaberThrow] failed to install hotkey input sink: no BSInputDeviceManager.");
             return;
         }
 
         inputManager->AddEventSink(&g_hotkeySink);
         SKSE::log::info(
-            "[SaberThrow] installed keyboard hotkey input sink for Throw Weapon and Throw Shield.");
+            "[SaberThrow] installed hotkey input sink for Throw Weapon and Throw Shield.");
     }
 
     inline SaberThrowEquipEventSink g_equipSink{};

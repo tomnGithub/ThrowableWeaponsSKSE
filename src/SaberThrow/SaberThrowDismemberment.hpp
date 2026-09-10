@@ -156,7 +156,7 @@ namespace SaberThrow
             return true;
         }
 
-        return actor->GetActorValue(RE::ActorValue::kHealth) <= 0.0f;
+        return actor->AsActorValueOwner()->GetActorValue(RE::ActorValue::kHealth) <= 0.0f;
     }
 
     inline bool SkipDismemberAPI(RE::Actor* actor)

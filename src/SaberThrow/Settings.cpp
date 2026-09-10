@@ -1,6 +1,7 @@
 #include "Settings.h"
 
 #include <SimpleIni.h>
+#include "SKSE/InputMap.h"
 #include "SKSE/SKSE.h"
 
 #include <algorithm>
@@ -60,15 +61,29 @@ namespace SaberThrow::Settings
         constexpr const char* kThrowDistKey = "fmadSaberThrowDistance";
         constexpr const char* kNoReturnSpeedKey = "fmadSaberThrowNoReturnSpeed";
         constexpr const char* kNoReturnDistKey = "fmadSaberThrowNoReturnDistance";
+        constexpr const char* kActorSweepRadiusMultKey = "fActorSweepRadiusMultiplier";
+        constexpr const char* kGroundSweepRadiusMultKey = "fGroundSweepRadiusMultiplier";
         constexpr const char* kWeaponSpinMultKey = "fThrowWeaponSpinMultiplier";
         constexpr const char* kTelekSpinMultKey = "fTelekineticThrowSpinMultiplier";
         constexpr const char* kWeaponOrientKey = "iThrowWeaponDefaultOrientation";
         constexpr const char* kTelekOrientKey = "iTelekineticThrowDefaultOrientation";
         constexpr const char* kWeaponHotkeyEnabledKey = "iThrowWeaponHotkeyEnabled";
         constexpr const char* kWeaponHotkeyKey = "iThrowWeaponHotkey";
+        constexpr const char* kWeaponHotkeyUseModifierKey = "iThrowWeaponHotkeyUseModifier";
+        constexpr const char* kWeaponHotkeyModifierKey = "iThrowWeaponHotkeyModifier";
+        constexpr const char* kWeaponGamepadHotkeyEnabledKey = "iThrowWeaponGamepadHotkeyEnabled";
+        constexpr const char* kWeaponGamepadHotkeyKey = "iThrowWeaponGamepadHotkey";
+        constexpr const char* kWeaponGamepadHotkeyUseModifierKey = "iThrowWeaponGamepadHotkeyUseModifier";
+        constexpr const char* kWeaponGamepadHotkeyModifierKey = "iThrowWeaponGamepadHotkeyModifier";
         constexpr const char* kHotkeyReturnOnHitKey = "iThrowWeaponHotkeyReturnOnHit";
         constexpr const char* kShieldHotkeyEnabledKey = "iThrowShieldHotkeyEnabled";
         constexpr const char* kShieldHotkeyKey = "iThrowShieldHotkey";
+        constexpr const char* kShieldHotkeyUseModifierKey = "iThrowShieldHotkeyUseModifier";
+        constexpr const char* kShieldHotkeyModifierKey = "iThrowShieldHotkeyModifier";
+        constexpr const char* kShieldGamepadHotkeyEnabledKey = "iThrowShieldGamepadHotkeyEnabled";
+        constexpr const char* kShieldGamepadHotkeyKey = "iThrowShieldGamepadHotkey";
+        constexpr const char* kShieldGamepadHotkeyUseModifierKey = "iThrowShieldGamepadHotkeyUseModifier";
+        constexpr const char* kShieldGamepadHotkeyModifierKey = "iThrowShieldGamepadHotkeyModifier";
         constexpr const char* kStaminaCostKey = "fmadSaberThrowStaminaCost";
         constexpr const char* kContinueThrowKey = "imadSaberThrowContiueThrow";
         constexpr const char* kDismemberEnabledKey = "imadSaberThrowDismember";
@@ -147,6 +162,7 @@ namespace SaberThrow::Settings
         constexpr const char* kThrowTriggerEventKey = "smadSaberThrowTriggerEvent";
 
         constexpr const char* kWeaponNeedsPerkKey = "iThrowWeaponRequiresPerk";
+        constexpr const char* kShieldNeedsPerkKey = "iThrowShieldRequiresPerk";
 
         constexpr const char* kWeaponPerk1HKey = "sThrowWeaponPerk1H";
         constexpr const char* kWeaponPerk2HKey = "sThrowWeaponPerk2H";
@@ -220,6 +236,8 @@ namespace SaberThrow::Settings
         constexpr float kDefThrowDist = 1500.0f;
         constexpr float kDefNoReturnSpeed = 3.0f;
         constexpr float kDefNoReturnDist = 1800.0f;
+        constexpr float kDefActorSweepRadiusMult = 1.0f;
+        constexpr float kDefGroundSweepRadiusMult = 1.0f;
         constexpr float kDefWeaponSpinMult = 1.0f;
         constexpr float kDefTelekSpinMult = 1.0f;
         constexpr std::uint32_t kDefWeaponOrient =
@@ -228,9 +246,22 @@ namespace SaberThrow::Settings
             static_cast<std::uint32_t>(ThrowOrientation::Horizontal);
         constexpr bool kDefWeaponHotkeyOn = false;
         constexpr std::uint32_t kDefWeaponHotkey = 0;
+        constexpr bool kDefWeaponHotkeyUseModifier = false;
+        constexpr std::uint32_t kDefWeaponHotkeyModifier = 0;
+        constexpr bool kDefWeaponGamepadHotkeyOn = false;
+        constexpr std::uint32_t kDefWeaponGamepadHotkey = SKSE::InputMap::kGamepadButtonOffset_A;
+        constexpr bool kDefWeaponGamepadHotkeyUseModifier = true;
+        constexpr std::uint32_t kDefWeaponGamepadHotkeyModifier = SKSE::InputMap::kGamepadButtonOffset_LT;
         constexpr bool kDefReturnOnHit = false;
         constexpr bool kDefShieldHotkeyOn = false;
         constexpr std::uint32_t kDefShieldHotkey = 0;
+        constexpr bool kDefShieldHotkeyUseModifier = false;
+        constexpr std::uint32_t kDefShieldHotkeyModifier = 0;
+        constexpr bool kDefShieldGamepadHotkeyOn = false;
+        constexpr std::uint32_t kDefShieldGamepadHotkey = SKSE::InputMap::kGamepadButtonOffset_A;
+        constexpr bool kDefShieldGamepadHotkeyUseModifier = true;
+        constexpr std::uint32_t kDefShieldGamepadHotkeyModifier = SKSE::InputMap::kGamepadButtonOffset_LT;
+        constexpr std::uint32_t kMaxHotkey = 281;
         constexpr float kDefNPCDamage = 1.0f;
         constexpr float kDefNPCSpeed = 1.0f;
         constexpr float kDefNPCRange = 1.0f;
@@ -315,6 +346,7 @@ namespace SaberThrow::Settings
         constexpr const char* kDefTriggerEvent = "ThrowWeaponRelease";
 
         constexpr bool kDefWeaponNeedsPerk = false;
+        constexpr bool kDefShieldNeedsPerk = false;
 
         const std::vector<PerkFormSpec> kDefWeaponPerks1H{
             { 0x058F61, "Skyrim.esm" },
@@ -380,15 +412,29 @@ namespace SaberThrow::Settings
         std::atomic<float> g_throwDist{ kDefThrowDist };
         std::atomic<float> g_noReturnSpeed{ kDefNoReturnSpeed };
         std::atomic<float> g_noReturnDist{ kDefNoReturnDist };
+        std::atomic<float> g_actorSweepRadiusMult{ kDefActorSweepRadiusMult };
+        std::atomic<float> g_groundSweepRadiusMult{ kDefGroundSweepRadiusMult };
         std::atomic<float> g_weaponSpinMult{ kDefWeaponSpinMult };
         std::atomic<float> g_telekSpinMult{ kDefTelekSpinMult };
         std::atomic<std::uint32_t> g_weaponOrient{ kDefWeaponOrient };
         std::atomic<std::uint32_t> g_telekOrient{ kDefTelekOrient };
         std::atomic<bool> g_weaponHotkeyOn{ kDefWeaponHotkeyOn };
         std::atomic<std::uint32_t> g_weaponHotkey{ kDefWeaponHotkey };
+        std::atomic<bool> g_weaponHotkeyUseModifier{ kDefWeaponHotkeyUseModifier };
+        std::atomic<std::uint32_t> g_weaponHotkeyModifier{ kDefWeaponHotkeyModifier };
+        std::atomic<bool> g_weaponGamepadHotkeyOn{ kDefWeaponGamepadHotkeyOn };
+        std::atomic<std::uint32_t> g_weaponGamepadHotkey{ kDefWeaponGamepadHotkey };
+        std::atomic<bool> g_weaponGamepadHotkeyUseModifier{ kDefWeaponGamepadHotkeyUseModifier };
+        std::atomic<std::uint32_t> g_weaponGamepadHotkeyModifier{ kDefWeaponGamepadHotkeyModifier };
         std::atomic<bool> g_returnOnHit{ kDefReturnOnHit };
         std::atomic<bool> g_shieldHotkeyOn{ kDefShieldHotkeyOn };
         std::atomic<std::uint32_t> g_shieldHotkey{ kDefShieldHotkey };
+        std::atomic<bool> g_shieldHotkeyUseModifier{ kDefShieldHotkeyUseModifier };
+        std::atomic<std::uint32_t> g_shieldHotkeyModifier{ kDefShieldHotkeyModifier };
+        std::atomic<bool> g_shieldGamepadHotkeyOn{ kDefShieldGamepadHotkeyOn };
+        std::atomic<std::uint32_t> g_shieldGamepadHotkey{ kDefShieldGamepadHotkey };
+        std::atomic<bool> g_shieldGamepadHotkeyUseModifier{ kDefShieldGamepadHotkeyUseModifier };
+        std::atomic<std::uint32_t> g_shieldGamepadHotkeyModifier{ kDefShieldGamepadHotkeyModifier };
         std::atomic<float> g_npcDamageMult{ kDefNPCDamage };
         std::atomic<float> g_npcSpeedMult{ kDefNPCSpeed };
         std::atomic<float> g_npcRangeMult{ kDefNPCRange };
@@ -462,6 +508,7 @@ namespace SaberThrow::Settings
         std::atomic<bool> g_preferLeftHand{ kDefPreferLeftHand };
         std::atomic<bool> g_autoEquipPickup{ kDefAutoEquipPickup };
         std::atomic<bool> g_weaponNeedsPerk{ kDefWeaponNeedsPerk };
+        std::atomic<bool> g_shieldNeedsPerk{ kDefShieldNeedsPerk };
         std::atomic<std::uint32_t> g_shieldPerkID{ kDefShieldPerkID };
 
         std::atomic<float> g_staggerChance{ kDefStaggerChance };
@@ -1012,15 +1059,29 @@ namespace SaberThrow::Settings
         float throwDist = kDefThrowDist;
         float noReturnSpeed = kDefNoReturnSpeed;
         float noReturnDist = kDefNoReturnDist;
+        float actorSweepRadiusMult = kDefActorSweepRadiusMult;
+        float groundSweepRadiusMult = kDefGroundSweepRadiusMult;
         float weaponSpinMult = kDefWeaponSpinMult;
         float telekSpinMult = kDefTelekSpinMult;
         std::uint32_t weaponOrient = kDefWeaponOrient;
         std::uint32_t telekOrient = kDefTelekOrient;
         bool weaponHotkeyOn = kDefWeaponHotkeyOn;
         std::uint32_t weaponHotkey = kDefWeaponHotkey;
+        bool weaponHotkeyUseModifier = kDefWeaponHotkeyUseModifier;
+        std::uint32_t weaponHotkeyModifier = kDefWeaponHotkeyModifier;
+        bool weaponGamepadHotkeyOn = kDefWeaponGamepadHotkeyOn;
+        std::uint32_t weaponGamepadHotkey = kDefWeaponGamepadHotkey;
+        bool weaponGamepadHotkeyUseModifier = kDefWeaponGamepadHotkeyUseModifier;
+        std::uint32_t weaponGamepadHotkeyModifier = kDefWeaponGamepadHotkeyModifier;
         bool returnOnHit = kDefReturnOnHit;
         bool shieldHotkeyOn = kDefShieldHotkeyOn;
         std::uint32_t shieldHotkey = kDefShieldHotkey;
+        bool shieldHotkeyUseModifier = kDefShieldHotkeyUseModifier;
+        std::uint32_t shieldHotkeyModifier = kDefShieldHotkeyModifier;
+        bool shieldGamepadHotkeyOn = kDefShieldGamepadHotkeyOn;
+        std::uint32_t shieldGamepadHotkey = kDefShieldGamepadHotkey;
+        bool shieldGamepadHotkeyUseModifier = kDefShieldGamepadHotkeyUseModifier;
+        std::uint32_t shieldGamepadHotkeyModifier = kDefShieldGamepadHotkeyModifier;
         float npcDamageMult = kDefNPCDamage;
         float npcSpeedMult = kDefNPCSpeed;
         float npcRangeMult = kDefNPCRange;
@@ -1107,6 +1168,7 @@ namespace SaberThrow::Settings
         std::string throwTriggerEvent = kDefTriggerEvent;
 
         bool weaponNeedsPerk = kDefWeaponNeedsPerk;
+        bool shieldNeedsPerk = kDefShieldNeedsPerk;
 
         std::vector<PerkFormSpec> weaponPerks1H = kDefWeaponPerks1H;
         std::vector<PerkFormSpec> weaponPerks2H = kDefWeaponPerks2H;
@@ -1269,6 +1331,24 @@ namespace SaberThrow::Settings
             0.0f,
             100000.0f);
 
+        actorSweepRadiusMult = ReadFiniteFloatFallback(
+            primaryIni,
+            fallbackIni,
+            kMCMSection,
+            kActorSweepRadiusMultKey,
+            kDefActorSweepRadiusMult,
+            0.0f,
+            10.0f);
+
+        groundSweepRadiusMult = ReadFiniteFloatFallback(
+            primaryIni,
+            fallbackIni,
+            kMCMSection,
+            kGroundSweepRadiusMultKey,
+            kDefGroundSweepRadiusMult,
+            0.0f,
+            10.0f);
+
         weaponSpinMult = ReadFiniteFloatFallback(
             primaryIni,
             fallbackIni,
@@ -1312,7 +1392,31 @@ namespace SaberThrow::Settings
             ReadUInt32Fallback(
                 primaryIni, fallbackIni, kMCMSection,
                 kWeaponHotkeyKey, kDefWeaponHotkey),
-            0xFFu);
+            kMaxHotkey);
+        weaponHotkeyUseModifier = ReadBool01Fallback(
+            primaryIni, fallbackIni, kMCMSection,
+            kWeaponHotkeyUseModifierKey, kDefWeaponHotkeyUseModifier);
+        weaponHotkeyModifier = std::min<std::uint32_t>(
+            ReadUInt32Fallback(
+                primaryIni, fallbackIni, kMCMSection,
+                kWeaponHotkeyModifierKey, kDefWeaponHotkeyModifier),
+            kMaxHotkey);
+        weaponGamepadHotkeyOn = ReadBool01Fallback(
+            primaryIni, fallbackIni, kMCMSection,
+            kWeaponGamepadHotkeyEnabledKey, kDefWeaponGamepadHotkeyOn);
+        weaponGamepadHotkey = std::min<std::uint32_t>(
+            ReadUInt32Fallback(
+                primaryIni, fallbackIni, kMCMSection,
+                kWeaponGamepadHotkeyKey, kDefWeaponGamepadHotkey),
+            kMaxHotkey);
+        weaponGamepadHotkeyUseModifier = ReadBool01Fallback(
+            primaryIni, fallbackIni, kMCMSection,
+            kWeaponGamepadHotkeyUseModifierKey, kDefWeaponGamepadHotkeyUseModifier);
+        weaponGamepadHotkeyModifier = std::min<std::uint32_t>(
+            ReadUInt32Fallback(
+                primaryIni, fallbackIni, kMCMSection,
+                kWeaponGamepadHotkeyModifierKey, kDefWeaponGamepadHotkeyModifier),
+            kMaxHotkey);
         returnOnHit = ReadBool01Fallback(
             primaryIni, fallbackIni, kMCMSection,
             kHotkeyReturnOnHitKey, kDefReturnOnHit);
@@ -1323,7 +1427,31 @@ namespace SaberThrow::Settings
             ReadUInt32Fallback(
                 primaryIni, fallbackIni, kMCMSection,
                 kShieldHotkeyKey, kDefShieldHotkey),
-            0xFFu);
+            kMaxHotkey);
+        shieldHotkeyUseModifier = ReadBool01Fallback(
+            primaryIni, fallbackIni, kMCMSection,
+            kShieldHotkeyUseModifierKey, kDefShieldHotkeyUseModifier);
+        shieldHotkeyModifier = std::min<std::uint32_t>(
+            ReadUInt32Fallback(
+                primaryIni, fallbackIni, kMCMSection,
+                kShieldHotkeyModifierKey, kDefShieldHotkeyModifier),
+            kMaxHotkey);
+        shieldGamepadHotkeyOn = ReadBool01Fallback(
+            primaryIni, fallbackIni, kMCMSection,
+            kShieldGamepadHotkeyEnabledKey, kDefShieldGamepadHotkeyOn);
+        shieldGamepadHotkey = std::min<std::uint32_t>(
+            ReadUInt32Fallback(
+                primaryIni, fallbackIni, kMCMSection,
+                kShieldGamepadHotkeyKey, kDefShieldGamepadHotkey),
+            kMaxHotkey);
+        shieldGamepadHotkeyUseModifier = ReadBool01Fallback(
+            primaryIni, fallbackIni, kMCMSection,
+            kShieldGamepadHotkeyUseModifierKey, kDefShieldGamepadHotkeyUseModifier);
+        shieldGamepadHotkeyModifier = std::min<std::uint32_t>(
+            ReadUInt32Fallback(
+                primaryIni, fallbackIni, kMCMSection,
+                kShieldGamepadHotkeyModifierKey, kDefShieldGamepadHotkeyModifier),
+            kMaxHotkey);
 
         if (npcIni) {
             npcDamageMult = ReadFiniteFloat(
@@ -1999,6 +2127,13 @@ namespace SaberThrow::Settings
             kWeaponNeedsPerkKey,
             kDefWeaponNeedsPerk);
 
+        shieldNeedsPerk = ReadBool01Fallback(
+            primaryIni,
+            fallbackIni,
+            kMCMSection,
+            kShieldNeedsPerkKey,
+            kDefShieldNeedsPerk);
+
         weaponPerks1H = ReadPerkFormSpecsFallback(
             primaryIni,
             fallbackIni,
@@ -2258,15 +2393,29 @@ namespace SaberThrow::Settings
         g_throwDist.store(throwDist, std::memory_order_release);
         g_noReturnSpeed.store(noReturnSpeed, std::memory_order_release);
         g_noReturnDist.store(noReturnDist, std::memory_order_release);
+        g_actorSweepRadiusMult.store(actorSweepRadiusMult, std::memory_order_release);
+        g_groundSweepRadiusMult.store(groundSweepRadiusMult, std::memory_order_release);
         g_weaponSpinMult.store(weaponSpinMult, std::memory_order_release);
         g_telekSpinMult.store(telekSpinMult, std::memory_order_release);
         g_weaponOrient.store(weaponOrient, std::memory_order_release);
         g_telekOrient.store(telekOrient, std::memory_order_release);
         g_weaponHotkeyOn.store(weaponHotkeyOn, std::memory_order_release);
         g_weaponHotkey.store(weaponHotkey, std::memory_order_release);
+        g_weaponHotkeyUseModifier.store(weaponHotkeyUseModifier, std::memory_order_release);
+        g_weaponHotkeyModifier.store(weaponHotkeyModifier, std::memory_order_release);
+        g_weaponGamepadHotkeyOn.store(weaponGamepadHotkeyOn, std::memory_order_release);
+        g_weaponGamepadHotkey.store(weaponGamepadHotkey, std::memory_order_release);
+        g_weaponGamepadHotkeyUseModifier.store(weaponGamepadHotkeyUseModifier, std::memory_order_release);
+        g_weaponGamepadHotkeyModifier.store(weaponGamepadHotkeyModifier, std::memory_order_release);
         g_returnOnHit.store(returnOnHit, std::memory_order_release);
         g_shieldHotkeyOn.store(shieldHotkeyOn, std::memory_order_release);
         g_shieldHotkey.store(shieldHotkey, std::memory_order_release);
+        g_shieldHotkeyUseModifier.store(shieldHotkeyUseModifier, std::memory_order_release);
+        g_shieldHotkeyModifier.store(shieldHotkeyModifier, std::memory_order_release);
+        g_shieldGamepadHotkeyOn.store(shieldGamepadHotkeyOn, std::memory_order_release);
+        g_shieldGamepadHotkey.store(shieldGamepadHotkey, std::memory_order_release);
+        g_shieldGamepadHotkeyUseModifier.store(shieldGamepadHotkeyUseModifier, std::memory_order_release);
+        g_shieldGamepadHotkeyModifier.store(shieldGamepadHotkeyModifier, std::memory_order_release);
         g_npcDamageMult.store(npcDamageMult, std::memory_order_release);
         g_npcSpeedMult.store(npcSpeedMult, std::memory_order_release);
         g_npcRangeMult.store(npcRangeMult, std::memory_order_release);
@@ -2340,6 +2489,7 @@ namespace SaberThrow::Settings
         g_preferLeftHand.store(preferLeftHand, std::memory_order_release);
         g_autoEquipPickup.store(autoEquipPickup, std::memory_order_release);
         g_weaponNeedsPerk.store(weaponNeedsPerk, std::memory_order_release);
+        g_shieldNeedsPerk.store(shieldNeedsPerk, std::memory_order_release);
         g_shieldPerkID.store(shieldPerkID, std::memory_order_release);
 
         g_staggerChance.store(staggerChance, std::memory_order_release);
@@ -2602,6 +2752,12 @@ namespace SaberThrow::Settings
         values.noReturnDist =
             g_noReturnDist.load(std::memory_order_acquire);
 
+        values.actorSweepRadiusMult =
+            g_actorSweepRadiusMult.load(std::memory_order_acquire);
+
+        values.groundSweepRadiusMult =
+            g_groundSweepRadiusMult.load(std::memory_order_acquire);
+
         values.weaponSpinMult =
             g_weaponSpinMult.load(std::memory_order_acquire);
         values.telekSpinMult =
@@ -2614,12 +2770,20 @@ namespace SaberThrow::Settings
             g_weaponHotkeyOn.load(std::memory_order_acquire);
         values.weaponHotkey =
             g_weaponHotkey.load(std::memory_order_acquire);
+        values.weaponHotkeyUseModifier =
+            g_weaponHotkeyUseModifier.load(std::memory_order_acquire);
+        values.weaponHotkeyModifier =
+            g_weaponHotkeyModifier.load(std::memory_order_acquire);
         values.returnOnHit =
             g_returnOnHit.load(std::memory_order_acquire);
         values.shieldHotkeyOn =
             g_shieldHotkeyOn.load(std::memory_order_acquire);
         values.shieldHotkey =
             g_shieldHotkey.load(std::memory_order_acquire);
+        values.shieldHotkeyUseModifier =
+            g_shieldHotkeyUseModifier.load(std::memory_order_acquire);
+        values.shieldHotkeyModifier =
+            g_shieldHotkeyModifier.load(std::memory_order_acquire);
 
         values.npcDamageMult =
             g_npcDamageMult.load(std::memory_order_acquire);
@@ -2827,6 +2991,9 @@ namespace SaberThrow::Settings
         values.weaponNeedsPerk =
             g_weaponNeedsPerk.load(std::memory_order_acquire);
 
+        values.shieldNeedsPerk =
+            g_shieldNeedsPerk.load(std::memory_order_acquire);
+
         values.shieldPerkID =
             g_shieldPerkID.load(std::memory_order_acquire);
 
@@ -2898,6 +3065,28 @@ namespace SaberThrow::Settings
             values.impactSoundPlugins = g_impactPlugins;
         }
 
+        return values;
+    }
+
+    GamepadHotkeys GetGamepadHotkeys()
+    {
+        GamepadHotkeys values{};
+        values.weaponHotkeyOn =
+            g_weaponGamepadHotkeyOn.load(std::memory_order_acquire);
+        values.weaponHotkey =
+            g_weaponGamepadHotkey.load(std::memory_order_acquire);
+        values.weaponHotkeyUseModifier =
+            g_weaponGamepadHotkeyUseModifier.load(std::memory_order_acquire);
+        values.weaponHotkeyModifier =
+            g_weaponGamepadHotkeyModifier.load(std::memory_order_acquire);
+        values.shieldHotkeyOn =
+            g_shieldGamepadHotkeyOn.load(std::memory_order_acquire);
+        values.shieldHotkey =
+            g_shieldGamepadHotkey.load(std::memory_order_acquire);
+        values.shieldHotkeyUseModifier =
+            g_shieldGamepadHotkeyUseModifier.load(std::memory_order_acquire);
+        values.shieldHotkeyModifier =
+            g_shieldGamepadHotkeyModifier.load(std::memory_order_acquire);
         return values;
     }
 }
