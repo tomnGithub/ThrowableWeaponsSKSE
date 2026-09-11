@@ -1566,8 +1566,11 @@ namespace SaberThrow
         const float dy = playerPos.y - droppedPos.y;
         const float dz = playerPos.z - droppedPos.z;
         const float distanceSquared = (dx * dx) + (dy * dy) + (dz * dz);
+        const float pickupRadiusMult =
+            ::SaberThrow::Settings::GetPickupRadiusMultiplier();
 
-        return distanceSquared <= kDropPickupDistSq;
+        return distanceSquared <=
+            kDropPickupDistSq * pickupRadiusMult * pickupRadiusMult;
     }
 
     inline void ClearDroppedThrowRef(RE::TESObjectREFR* ref, const char* reason)

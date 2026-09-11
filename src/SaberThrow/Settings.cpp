@@ -63,6 +63,7 @@ namespace SaberThrow::Settings
         constexpr const char* kNoReturnDistKey = "fmadSaberThrowNoReturnDistance";
         constexpr const char* kActorSweepRadiusMultKey = "fActorSweepRadiusMultiplier";
         constexpr const char* kGroundSweepRadiusMultKey = "fGroundSweepRadiusMultiplier";
+        constexpr const char* kPickupRadiusMultKey = "fmadSaberThrowPickupRadiusMultiplier";
         constexpr const char* kWeaponSpinMultKey = "fThrowWeaponSpinMultiplier";
         constexpr const char* kTelekSpinMultKey = "fTelekineticThrowSpinMultiplier";
         constexpr const char* kWeaponOrientKey = "iThrowWeaponDefaultOrientation";
@@ -232,12 +233,13 @@ namespace SaberThrow::Settings
         constexpr float kDefThirdSneakAimOffset = 0.0f;
         constexpr float kDefNoReturnLockAim = 0.0f;
         constexpr float kDefTelekLockAim = 0.0f;
-        constexpr float kDefThrowSpeed = 2.3f;
+        constexpr float kDefThrowSpeed = 2.8f;
         constexpr float kDefThrowDist = 1500.0f;
-        constexpr float kDefNoReturnSpeed = 3.0f;
+        constexpr float kDefNoReturnSpeed = 2.8f;
         constexpr float kDefNoReturnDist = 1800.0f;
         constexpr float kDefActorSweepRadiusMult = 1.0f;
-        constexpr float kDefGroundSweepRadiusMult = 1.0f;
+        constexpr float kDefGroundSweepRadiusMult = 0.0f;
+        constexpr float kDefPickupRadiusMult = 1.0f;
         constexpr float kDefWeaponSpinMult = 1.0f;
         constexpr float kDefTelekSpinMult = 1.0f;
         constexpr std::uint32_t kDefWeaponOrient =
@@ -297,11 +299,11 @@ namespace SaberThrow::Settings
         constexpr float kDefDamageDagger1H = 1.0f;
         constexpr float kDefSpeedDagger1H = 1.0f;
         constexpr float kDefDistanceDagger1H = 1.0f;
-        constexpr float kDefStaminaDagger1H = 1.0f;
+        constexpr float kDefStaminaDagger1H = 0.3f;
         constexpr float kDefDamageAxe1H = 1.0f;
         constexpr float kDefSpeedAxe1H = 1.0f;
         constexpr float kDefDistanceAxe1H = 1.0f;
-        constexpr float kDefStaminaAxe1H = 1.0f;
+        constexpr float kDefStaminaAxe1H = 0.6f;
         constexpr float kDefDamageAxe2H = 1.0f;
         constexpr float kDefSpeedAxe2H = 1.0f;
         constexpr float kDefDistanceAxe2H = 1.0f;
@@ -317,11 +319,11 @@ namespace SaberThrow::Settings
         constexpr float kDefDamageSpear1H = 1.0f;
         constexpr float kDefSpeedSpear1H = 1.0f;
         constexpr float kDefDistanceSpear1H = 1.0f;
-        constexpr float kDefStaminaSpear1H = 1.0f;
+        constexpr float kDefStaminaSpear1H = 0.6f;
         constexpr float kDefDamageSpear2H = 1.0f;
         constexpr float kDefSpeedSpear2H = 1.0f;
         constexpr float kDefDistanceSpear2H = 1.0f;
-        constexpr float kDefStaminaSpear2H = 1.0f;
+        constexpr float kDefStaminaSpear2H = 0.8f;
         constexpr float kDefDamageShield = 1.0f;
         constexpr float kDefSpeedShield = 1.0f;
         constexpr float kDefDistanceShield = 1.0f;
@@ -414,6 +416,7 @@ namespace SaberThrow::Settings
         std::atomic<float> g_noReturnDist{ kDefNoReturnDist };
         std::atomic<float> g_actorSweepRadiusMult{ kDefActorSweepRadiusMult };
         std::atomic<float> g_groundSweepRadiusMult{ kDefGroundSweepRadiusMult };
+        std::atomic<float> g_pickupRadiusMult{ kDefPickupRadiusMult };
         std::atomic<float> g_weaponSpinMult{ kDefWeaponSpinMult };
         std::atomic<float> g_telekSpinMult{ kDefTelekSpinMult };
         std::atomic<std::uint32_t> g_weaponOrient{ kDefWeaponOrient };
@@ -1061,6 +1064,7 @@ namespace SaberThrow::Settings
         float noReturnDist = kDefNoReturnDist;
         float actorSweepRadiusMult = kDefActorSweepRadiusMult;
         float groundSweepRadiusMult = kDefGroundSweepRadiusMult;
+        float pickupRadiusMult = kDefPickupRadiusMult;
         float weaponSpinMult = kDefWeaponSpinMult;
         float telekSpinMult = kDefTelekSpinMult;
         std::uint32_t weaponOrient = kDefWeaponOrient;
@@ -1348,6 +1352,15 @@ namespace SaberThrow::Settings
             kDefGroundSweepRadiusMult,
             0.0f,
             10.0f);
+
+        pickupRadiusMult = ReadFiniteFloatFallback(
+            primaryIni,
+            fallbackIni,
+            kMCMSection,
+            kPickupRadiusMultKey,
+            kDefPickupRadiusMult,
+            0.25f,
+            1.25f);
 
         weaponSpinMult = ReadFiniteFloatFallback(
             primaryIni,
@@ -2395,6 +2408,7 @@ namespace SaberThrow::Settings
         g_noReturnDist.store(noReturnDist, std::memory_order_release);
         g_actorSweepRadiusMult.store(actorSweepRadiusMult, std::memory_order_release);
         g_groundSweepRadiusMult.store(groundSweepRadiusMult, std::memory_order_release);
+        g_pickupRadiusMult.store(pickupRadiusMult, std::memory_order_release);
         g_weaponSpinMult.store(weaponSpinMult, std::memory_order_release);
         g_telekSpinMult.store(telekSpinMult, std::memory_order_release);
         g_weaponOrient.store(weaponOrient, std::memory_order_release);
@@ -3066,6 +3080,11 @@ namespace SaberThrow::Settings
         }
 
         return values;
+    }
+
+    float GetPickupRadiusMultiplier()
+    {
+        return g_pickupRadiusMult.load(std::memory_order_acquire);
     }
 
     GamepadHotkeys GetGamepadHotkeys()

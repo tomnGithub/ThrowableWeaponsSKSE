@@ -31,13 +31,13 @@ namespace SaberThrow::Settings
         float noReturnLockAim{ 0.0f };
         float telekLockAim{ 0.0f };
 
-        float throwSpeed{ 2.3f };
+        float throwSpeed{ 2.8f };
         float throwDist{ 1500.0f };
-        float noReturnSpeed{ 3.0f };
+        float noReturnSpeed{ 2.8f };
         float noReturnDist{ 1800.0f };
 
         float actorSweepRadiusMult{ 1.0f };
-        float groundSweepRadiusMult{ 1.0f };
+        float groundSweepRadiusMult{ 0.0f };
 
         float weaponSpinMult{ 1.0f };
         float telekSpinMult{ 1.0f };
@@ -91,12 +91,12 @@ namespace SaberThrow::Settings
         float damageDagger1H{ 1.0f };
         float speedDagger1H{ 1.0f };
         float distanceDagger1H{ 1.0f };
-        float staminaDagger1H{ 1.0f };
+        float staminaDagger1H{ 0.3f };
 
         float damageAxe1H{ 1.0f };
         float speedAxe1H{ 1.0f };
         float distanceAxe1H{ 1.0f };
-        float staminaAxe1H{ 1.0f };
+        float staminaAxe1H{ 0.6f };
         float damageAxe2H{ 1.0f };
         float speedAxe2H{ 1.0f };
         float distanceAxe2H{ 1.0f };
@@ -114,11 +114,11 @@ namespace SaberThrow::Settings
         float damageSpear1H{ 1.0f };
         float speedSpear1H{ 1.0f };
         float distanceSpear1H{ 1.0f };
-        float staminaSpear1H{ 1.0f };
+        float staminaSpear1H{ 0.6f };
         float damageSpear2H{ 1.0f };
         float speedSpear2H{ 1.0f };
         float distanceSpear2H{ 1.0f };
-        float staminaSpear2H{ 1.0f };
+        float staminaSpear2H{ 0.8f };
 
         float damageShield{ 1.0f };
         float speedShield{ 1.0f };
@@ -228,4 +228,5 @@ namespace SaberThrow::Settings
 
     Values Get();
     GamepadHotkeys GetGamepadHotkeys();
+    float GetPickupRadiusMultiplier();
 }

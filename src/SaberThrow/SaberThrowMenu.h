@@ -776,6 +776,7 @@ namespace SaberThrow::Menu
         inline void __stdcall RenderGeneral()
         {
             const auto settings = Settings::Get();
+            const float pickupRadiusMultiplier = Settings::GetPickupRadiusMultiplier();
 
             DrawHeader("Tracking & Recovery");
             DrawIniOnlyToggle(
@@ -790,6 +791,17 @@ namespace SaberThrow::Menu
                 false,
                 "When enabled, all thrown weapons will automatically return to the player when "
                 "Combat ends.");
+            DrawSlider(
+                "fmadSaberThrowPickupRadiusMultiplier",
+                "Pickup Radius Multiplier",
+                pickupRadiusMultiplier,
+                0.25f,
+                1.25f,
+                0.05f,
+                "%.2fx",
+                "Multiplies how close the player must be to a dropped thrown item for proximity "
+                "pickup. 1.0x uses the normal 200-unit pickup radius. This does not affect NPC "
+                "throws or NPC recovery.");
 
             DrawHeader("Throw Physics");
             DrawSlider(
