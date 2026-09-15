@@ -114,6 +114,8 @@ namespace SaberThrow
         g_state.weaponUnequipped = false;
         g_state.weaponWasLeft = false;
         g_state.throwPoison = ThrowPoisonState{};
+        g_state.throwTemperMult = 1.0f;
+        g_state.throwInstanceEnchantment = nullptr;
         g_state.noReturnDynamic = false;
         g_state.shieldFullDist = false;
         g_state.visualOrientation = ::SaberThrow::Settings::ThrowOrientation::Horizontal;
@@ -251,6 +253,26 @@ namespace SaberThrow
         RE::Actor* hitActor = nullptr,
         bool geometryStop = false)
     {
+        auto* boundThrowItem =
+            ref && IsThrowFromPlayer() ? GetBoundThrowInvItem(ref) : nullptr;
+        const bool boundPlayerThrow =
+            boundThrowItem && boundThrowItem->IsBound();
+
+        ThrownInventoryTransferRecord boundPickupRecord{};
+        bool hasBoundPickupRecord = false;
+        if (boundPlayerThrow) {
+            hasBoundPickupRecord =
+                GetThrowInvRecord(ref->GetFormID(), boundPickupRecord);
+
+            if (!hasBoundPickupRecord) {
+                boundPickupRecord.thrownRefHandle = ref->GetHandle();
+                boundPickupRecord.thrownRefFormID = ref->GetFormID();
+                boundPickupRecord.itemFormID = boundThrowItem->GetFormID();
+                boundPickupRecord.wasLeftHand =
+                    g_state.hasThrowHand && g_state.throwHandLeft;
+                hasBoundPickupRecord = true;
+            }
+        }
 
         if (ref) {
             const RE::NiPoint3 desiredStopPos = stopPos ? *stopPos : ref->GetPosition();
@@ -277,26 +299,57 @@ namespace SaberThrow
 
             ForceDynamicMotion(ref, "FinishNoReturnStopDynamicMainThread final clearance then dynamic");
 
-            AddPickupBlock(ref);
+            if (!boundPlayerThrow) {
+                AddPickupBlock(ref);
 
-            if (g_state.unblockOnStop) {
-                ref->SetActivationBlocked(false);
-            }
+                if (g_state.unblockOnStop) {
+                    ref->SetActivationBlocked(false);
+                }
 
-            if (!g_state.skipPickupReg) {
-                AddPickupTriggerRef(ref, reason);
-            }
+                if (!g_state.skipPickupReg) {
+                    AddPickupTriggerRef(ref, reason);
+                }
 
-            if (g_state.npcNoReturn) {
-                AddNPCNoReturnRef(ref, reason);
+                if (g_state.npcNoReturn) {
+                    AddNPCNoReturnRef(ref, reason);
 
-                auto sourcePtr = g_state.sourceActorHandle.get();
-                auto* sourceActor = sourcePtr ? sourcePtr.get() : nullptr;
-                AddNPCRecovery(sourceActor, ref, reason);
+                    auto sourcePtr = g_state.sourceActorHandle.get();
+                    auto* sourceActor = sourcePtr ? sourcePtr.get() : nullptr;
+                    AddNPCRecovery(sourceActor, ref, reason);
+                }
             }
         }
 
+        const bool restoreBoundOnImpact =
+            boundPlayerThrow &&
+            (g_state.modName == "ThrowableWeaponsSKSEFTG" ||
+                ::SaberThrow::Settings::Get().recastBoundOnImpact);
+
+        if (restoreBoundOnImpact && hasBoundPickupRecord) {
+            RestoreBoundThrowEffect(
+                boundPickupRecord,
+                RE::PlayerCharacter::GetSingleton(),
+                g_state.modName == "ThrowableWeaponsSKSEFTG" ?
+                    "bound FTG throw impact" :
+                    "bound no-return throw impact");
+        }
+
         SendPapyrusNoReturnStop(ref, reason, hitActor);
+
+        if (boundPlayerThrow && ref) {
+            if (hasBoundPickupRecord) {
+                SendPapyrusPickupEvent(
+                    boundPickupRecord,
+                    ref,
+                    "bound no-return throw impact");
+            }
+
+            const RE::FormID thrownRefFormID = ref->GetFormID();
+            DisableDeleteThrownRef(
+                ref,
+                "bound no-return throw impact");
+            RemoveThrowInvRecord(thrownRefFormID);
+        }
 
         ClearState(reason);
     }

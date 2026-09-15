@@ -18,6 +18,10 @@ namespace SaberThrow
             return nullptr;
         }
 
+        if (auto* boundWeapon = GetBoundThrowInvItem(thrownRef)) {
+            return boundWeapon;
+        }
+
         auto* baseObj = thrownRef->GetObjectReference();
         if (!baseObj) {
             return nullptr;
@@ -537,7 +541,7 @@ namespace SaberThrow
 
         const auto settings = ::SaberThrow::Settings::Get();
         auto* baseObject = thrownRef->GetObjectReference();
-        auto* weapon = baseObject ? baseObject->As<RE::TESObjectWEAP>() : nullptr;
+        auto* weapon = GetWeaponBase(thrownRef);
         auto* shield = weapon || !baseObject ? nullptr : baseObject->As<RE::TESObjectARMO>();
         auto* torch = (!weapon && !shield && IsThrownTorch(thrownRef)) ?
             baseObject :

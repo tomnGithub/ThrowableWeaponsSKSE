@@ -917,6 +917,12 @@ namespace SaberThrow::Menu
                 settings.autoEquipPickup,
                 "When enabled, thrown weapon auto equips itself when near. If turned off, the "
                 "weapon is added to your inventory instead.");
+            DrawToggle(
+                "iThrowWeaponRecastBoundWeaponOnImpact",
+                "Recast Bound Weapon on Impact",
+                settings.recastBoundOnImpact,
+                "When enabled, bound weapon spells will be recast on impact."
+                "No magicka cost is applied but spell's duration will match its previous remaining duration.");
 
             DrawHeader("Damage Scaling");
             DrawSlider(

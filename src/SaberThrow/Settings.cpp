@@ -155,6 +155,7 @@ namespace SaberThrow::Settings
         constexpr const char* kEquipNextStackKey = "iEquipNextItemInStack";
         constexpr const char* kPreferLeftHandKey = "imadSaberThrowLeftHand";
         constexpr const char* kAutoEquipPickupKey = "imadSaberThrowAutoEquip";
+        constexpr const char* kRecastBoundOnImpactKey = "iThrowWeaponRecastBoundWeaponOnImpact";
         constexpr const char* kWeaponAnimRightKey = "smadSaberThrowAnimationEventRight";
         constexpr const char* kTelekAnimKey = "smadSaberThrowAnimationEventTelekinetic";
         constexpr const char* kWeaponAnimLeftKey = "smadSaberThrowAnimationEventLeft";
@@ -340,6 +341,7 @@ namespace SaberThrow::Settings
         constexpr bool kDefEquipNextStack = true;
         constexpr bool kDefPreferLeftHand = false;
         constexpr bool kDefAutoEquipPickup = true;
+        constexpr bool kDefRecastBoundOnImpact = false;
         constexpr const char* kDefWeaponAnimRight = "TWS_ThrowWeaponStanding";
         constexpr const char* kDefTelekAnim = "TWS_TelekineticThrowStanding";
         constexpr const char* kDefWeaponAnimLeft = "TWS_LeftHandThrowStanding";
@@ -510,6 +512,7 @@ namespace SaberThrow::Settings
         std::atomic<bool> g_equipNextStack{ kDefEquipNextStack };
         std::atomic<bool> g_preferLeftHand{ kDefPreferLeftHand };
         std::atomic<bool> g_autoEquipPickup{ kDefAutoEquipPickup };
+        std::atomic<bool> g_recastBoundOnImpact{ kDefRecastBoundOnImpact };
         std::atomic<bool> g_weaponNeedsPerk{ kDefWeaponNeedsPerk };
         std::atomic<bool> g_shieldNeedsPerk{ kDefShieldNeedsPerk };
         std::atomic<std::uint32_t> g_shieldPerkID{ kDefShieldPerkID };
@@ -1164,6 +1167,7 @@ namespace SaberThrow::Settings
         bool equipNextStack = kDefEquipNextStack;
         bool preferLeftHand = kDefPreferLeftHand;
         bool autoEquipPickup = kDefAutoEquipPickup;
+        bool recastBoundOnImpact = kDefRecastBoundOnImpact;
         std::string weaponAnimRight = kDefWeaponAnimRight;
         std::string telekAnim = kDefTelekAnim;
         std::string weaponAnimLeft = kDefWeaponAnimLeft;
@@ -2069,6 +2073,13 @@ namespace SaberThrow::Settings
             kAutoEquipPickupKey,
             kDefAutoEquipPickup);
 
+        recastBoundOnImpact = ReadBool01Fallback(
+            primaryIni,
+            fallbackIni,
+            kMCMSection,
+            kRecastBoundOnImpactKey,
+            kDefRecastBoundOnImpact);
+
         weaponAnimRight = ReadAnimationEventString(
             animIni,
             kWeaponAnimRightKey,
@@ -2502,6 +2513,7 @@ namespace SaberThrow::Settings
         g_equipNextStack.store(equipNextStack, std::memory_order_release);
         g_preferLeftHand.store(preferLeftHand, std::memory_order_release);
         g_autoEquipPickup.store(autoEquipPickup, std::memory_order_release);
+        g_recastBoundOnImpact.store(recastBoundOnImpact, std::memory_order_release);
         g_weaponNeedsPerk.store(weaponNeedsPerk, std::memory_order_release);
         g_shieldNeedsPerk.store(shieldNeedsPerk, std::memory_order_release);
         g_shieldPerkID.store(shieldPerkID, std::memory_order_release);
@@ -3001,6 +3013,9 @@ namespace SaberThrow::Settings
 
         values.autoEquipPickup =
             g_autoEquipPickup.load(std::memory_order_acquire);
+
+        values.recastBoundOnImpact =
+            g_recastBoundOnImpact.load(std::memory_order_acquire);
 
         values.weaponNeedsPerk =
             g_weaponNeedsPerk.load(std::memory_order_acquire);

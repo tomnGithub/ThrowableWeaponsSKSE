@@ -763,6 +763,49 @@ namespace SaberThrow
             return;
         }
 
+        float throwTemperMult = 1.0f;
+        RE::EnchantmentItem* throwInstanceEnchantment = nullptr;
+        if (!startingNPCThrow && moveEquipToTemp && hasThrowHand) {
+            auto* thrownItem = static_cast<RE::TESBoundObject*>(GetBoundThrowInvItem(ref));
+            if (!thrownItem) {
+                thrownItem = ref->GetObjectReference();
+            }
+            auto* equippedExtra = FindPlayerThrowExtra(
+                player,
+                thrownItem,
+                throwWasLeft);
+
+            if (thrownItem && equippedExtra) {
+                if (auto* enchantmentExtra = equippedExtra->GetByType<RE::ExtraEnchantment>();
+                    enchantmentExtra && enchantmentExtra->enchantment) {
+                    throwInstanceEnchantment = enchantmentExtra->enchantment;
+                }
+
+                if (equippedExtra->GetByType<RE::ExtraHealth>()) {
+                    auto* equippedEntry = player->GetEquippedEntryData(throwWasLeft);
+                    if (equippedEntry && equippedEntry->object == thrownItem) {
+                        RE::InventoryEntryData baseEntry{ thrownItem, 1 };
+                        float baseValue = 0.0f;
+                        float temperedValue = 0.0f;
+
+                        if (thrownItem->As<RE::TESObjectWEAP>()) {
+                            baseValue = player->GetDamage(&baseEntry);
+                            temperedValue = player->GetDamage(equippedEntry);
+                        }
+                        else if (thrownItem->As<RE::TESObjectARMO>()) {
+                            baseValue = player->GetArmorValue(&baseEntry);
+                            temperedValue = player->GetArmorValue(equippedEntry);
+                        }
+
+                        if (std::isfinite(baseValue) && baseValue > 0.0f &&
+                            std::isfinite(temperedValue) && temperedValue > 0.0f) {
+                            throwTemperMult = std::clamp(temperedValue / baseValue, 0.01f, 100.0f);
+                        }
+                    }
+                }
+            }
+        }
+
         RE::NiPoint3 snapPos{};
         RE::NiPoint3 farPos{};
         TDMLockStatus tdmLockStatus{};
@@ -887,6 +930,8 @@ namespace SaberThrow
         g_state.hasThrowHand = hasThrowHand;
         g_state.throwHandLeft = throwWasLeft;
         g_state.throwPoison = throwPoison;
+        g_state.throwTemperMult = throwTemperMult;
+        g_state.throwInstanceEnchantment = throwInstanceEnchantment;
         g_state.noReturnDynamic = movementNoReturn;
         g_state.shieldFullDist = shieldNoReturn;
         g_state.visualOrientation = throwOrient;

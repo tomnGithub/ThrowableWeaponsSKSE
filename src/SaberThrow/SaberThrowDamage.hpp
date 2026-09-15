@@ -159,6 +159,7 @@ namespace SaberThrow
         }
 
         RE::InventoryEntryData weaponEntry{ weapon, 1 };
+
         const bool isLeftHand = g_state.hasThrowHand && g_state.throwHandLeft;
         outHitData.Populate(attacker, target, &weaponEntry, isLeftHand);
         outHitData.hitPosition = hitPos;
@@ -258,6 +259,7 @@ namespace SaberThrow
         }
 
         RE::InventoryEntryData shieldEntry{ shield, 1 };
+
         outHitData.Populate(player, target, &shieldEntry, true);
 
         const float nativePhysMult =
@@ -1146,13 +1148,17 @@ namespace SaberThrow
         RE::Actor* target,
         RE::Actor* caster,
         RE::TESObjectWEAP* weapon,
-        const RE::NiPoint3& hitPos)
+        const RE::NiPoint3& hitPos,
+        RE::EnchantmentItem* instanceEnchantment = nullptr)
     {
-        if (!target || !caster || !weapon || !weapon->formEnchanting) {
+        if (!target || !caster || !weapon) {
             return false;
         }
 
-        auto* enchantment = weapon->formEnchanting;
+        auto* enchantment = instanceEnchantment ? instanceEnchantment : weapon->formEnchanting;
+        if (!enchantment) {
+            return false;
+        }
         auto* magicTarget = target->AsMagicTarget();
         bool anyApplied = false;
         std::uint32_t attempted = 0;
@@ -1416,6 +1422,10 @@ namespace SaberThrow
                 GetDmgFromHitOrFallback(hitData, thrownRef) :
                 GetThrowDmgFallback(thrownRef));
 
+        if (throwFromPlayer && !torchBash) {
+            baseDamage *= g_state.throwTemperMult;
+        }
+
         if (throwFromPlayer && builtHitData && weapon && !shieldBash && !torchBash) {
             baseDamage = ApplySneakBonusMult(hitData, baseDamage);
         }
@@ -1518,7 +1528,12 @@ namespace SaberThrow
                 ApplyTorchBashFireSpell(actor, sourceActor, torch, hitPos);
             }
 
-            ApplyWeaponBaseEnchant(actor, sourceActor, weapon, hitPos);
+            ApplyWeaponBaseEnchant(
+                actor,
+                sourceActor,
+                weapon,
+                hitPos,
+                throwFromPlayer ? g_state.throwInstanceEnchantment : nullptr);
             ApplyCachedThrowPoison(actor, sourceActor, weapon, hitPos);
 
             const bool noReturnStagger = g_state.noReturnDynamic;

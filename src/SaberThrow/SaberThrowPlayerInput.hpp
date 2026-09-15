@@ -929,13 +929,36 @@ namespace SaberThrow
             return nullptr;
         }
 
-        RE::NiPointer<RE::TESObjectREFR> droppedRef = player->PlaceObjectAtMe(baseToPlace, true);
+        RE::TESBoundObject* placeBase = baseToPlace;
+        RE::TESObjectWEAP* sourceWeapon = nullptr;
+        RE::TESBoundObject* boundThrowBase = nullptr;
+
+        if (auto* weaponToPlace = baseToPlace->As<RE::TESObjectWEAP>();
+            weaponToPlace && weaponToPlace->IsBound()) {
+            sourceWeapon = weaponToPlace;
+            boundThrowBase = GetBoundThrowBase(sourceWeapon);
+            if (!boundThrowBase) {
+                return nullptr;
+            }
+            placeBase = boundThrowBase;
+        }
+
+
+        RE::NiPointer<RE::TESObjectREFR> droppedRef = player->PlaceObjectAtMe(
+            placeBase,
+            boundThrowBase == nullptr);
         if (!droppedRef) {
             SKSE::log::warn(
                 "[SaberThrow] ThrowEquippedWeapon skipped: PlaceObjectAtMe failed for {} 0x{:08X}.",
                 itemLabel ? itemLabel : "equipped item",
                 baseToPlace->GetFormID());
             return nullptr;
+        }
+
+        if (sourceWeapon && boundThrowBase) {
+            RememberBoundThrow(
+                droppedRef.get(),
+                sourceWeapon);
         }
 
         SetupThrowRef(droppedRef.get());
@@ -1082,7 +1105,7 @@ namespace SaberThrow
             const bool cachePoison =
                 nativeSpawnedRef &&
                 nativeSpawnedBase &&
-                nativeSpawnedBase->As<RE::TESObjectWEAP>() != nullptr;
+                GetWeaponBase(refHandle.get()) != nullptr;
 
             const std::uint32_t session = StartAnimDebug();
             if (session == 0) {

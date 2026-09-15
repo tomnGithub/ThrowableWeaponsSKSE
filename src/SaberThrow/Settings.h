@@ -140,6 +140,7 @@ namespace SaberThrow::Settings
         bool preferLeftHand{ false };
 
         bool autoEquipPickup{ true };
+        bool recastBoundOnImpact{ false };
 
         std::string weaponAnimRight{ "TWS_ThrowWeaponStanding" };
         std::string telekAnim{ "TWS_TelekineticThrowStanding" };

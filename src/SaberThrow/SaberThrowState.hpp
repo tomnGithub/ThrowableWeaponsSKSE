@@ -119,6 +119,8 @@ namespace SaberThrow
         bool weaponWasLeft{ false };
 
         ThrowPoisonState throwPoison{};
+        float throwTemperMult{ 1.0f };
+        RE::EnchantmentItem* throwInstanceEnchantment{ nullptr };
 
         bool noReturnDynamic{ false };
 
@@ -157,12 +159,139 @@ namespace SaberThrow
         RE::ObjectRefHandle thrownRefHandle{};
         RE::FormID thrownRefFormID{ 0 };
         RE::FormID itemFormID{ 0 };
+        RE::MagicItem* boundMagicItem{ nullptr };
+        RE::Effect* boundEffect{ nullptr };
+        RE::TESBoundObject* boundEffectSource{ nullptr };
+        float boundEffectRemaining{ 0.0f };
+        float boundEffectMagnitude{ 0.0f };
+        std::chrono::steady_clock::time_point boundEffectTime{};
+        RE::MagicSystem::CastingSource boundCastingSource{ RE::MagicSystem::CastingSource::kNone };
+        bool boundEffectTimed{ false };
+        bool boundEffectDual{ false };
         bool usedEquippedExtra{ false };
         bool wasLeftHand{ false };
     };
 
     inline std::mutex g_invTransferLock;
     inline std::vector<ThrownInventoryTransferRecord> g_invTransfers;
+
+    struct BoundThrowRecord
+    {
+        RE::FormID thrownRefFormID{ 0 };
+        RE::FormID sourceWeaponFormID{ 0 };
+    };
+
+    inline std::mutex g_boundThrowLock;
+    inline std::vector<BoundThrowRecord> g_boundThrows;
+
+    inline RE::TESBoundObject* GetBoundThrowBase(RE::TESObjectWEAP* sourceWeapon)
+    {
+        if (!sourceWeapon || !sourceWeapon->IsBound()) {
+            return nullptr;
+        }
+
+        if (sourceWeapon->formEnchanting) {
+            for (auto* effect : sourceWeapon->formEnchanting->effects) {
+                if (!effect || !effect->baseEffect || !effect->baseEffect->data.enchantEffectArt) {
+                    continue;
+                }
+
+                auto* enchantArt = effect->baseEffect->data.enchantEffectArt;
+                auto* enchantArtModel = static_cast<RE::TESModelTextureSwap*>(enchantArt);
+                if (enchantArtModel->model.empty()) {
+                    continue;
+                }
+
+                return enchantArt;
+            }
+        }
+
+        if (sourceWeapon->firstPersonModelObject) {
+            auto* firstPersonModel = static_cast<RE::TESModelTextureSwap*>(sourceWeapon->firstPersonModelObject);
+            if (!firstPersonModel->model.empty()) {
+                return sourceWeapon->firstPersonModelObject;
+            }
+        }
+
+        return nullptr;
+    }
+
+    inline void RememberBoundThrow(
+        RE::TESObjectREFR* thrownRef,
+        RE::TESObjectWEAP* sourceWeapon)
+    {
+        if (!thrownRef || !sourceWeapon) {
+            return;
+        }
+
+        BoundThrowRecord record{};
+        record.thrownRefFormID = thrownRef->GetFormID();
+        record.sourceWeaponFormID = sourceWeapon->GetFormID();
+
+        std::scoped_lock lock(g_boundThrowLock);
+        auto it = std::find_if(
+            g_boundThrows.begin(),
+            g_boundThrows.end(),
+            [&](const BoundThrowRecord& entry) {
+                return entry.thrownRefFormID == record.thrownRefFormID;
+            });
+
+        if (it != g_boundThrows.end()) {
+            *it = record;
+        }
+        else {
+            g_boundThrows.push_back(record);
+        }
+    }
+
+    inline RE::TESObjectWEAP* GetBoundThrowInvItem(RE::TESObjectREFR* thrownRef)
+    {
+        if (!thrownRef) {
+            return nullptr;
+        }
+
+        RE::FormID sourceWeaponFormID = 0;
+        {
+            std::scoped_lock lock(g_boundThrowLock);
+            const auto it = std::find_if(
+                g_boundThrows.begin(),
+                g_boundThrows.end(),
+                [&](const BoundThrowRecord& entry) {
+                    return entry.thrownRefFormID == thrownRef->GetFormID();
+                });
+
+            if (it != g_boundThrows.end()) {
+                sourceWeaponFormID = it->sourceWeaponFormID;
+            }
+        }
+
+        return sourceWeaponFormID ?
+            RE::TESForm::LookupByID<RE::TESObjectWEAP>(sourceWeaponFormID) :
+            nullptr;
+    }
+
+    inline void RemoveBoundThrowRecord(RE::FormID thrownRefFormID)
+    {
+        if (thrownRefFormID == 0) {
+            return;
+        }
+
+        std::scoped_lock lock(g_boundThrowLock);
+        g_boundThrows.erase(
+            std::remove_if(
+                g_boundThrows.begin(),
+                g_boundThrows.end(),
+                [thrownRefFormID](const BoundThrowRecord& entry) {
+                    return entry.thrownRefFormID == thrownRefFormID;
+                }),
+            g_boundThrows.end());
+    }
+
+    inline void ClearBoundThrowMemory()
+    {
+        std::scoped_lock lock(g_boundThrowLock);
+        g_boundThrows.clear();
+    }
 
     struct NPCDroppedWeaponRecoveryRecord
     {
@@ -590,6 +719,166 @@ namespace SaberThrow
         return nullptr;
     }
 
+    inline RE::ActiveEffect* GetBoundThrowEffect(
+        RE::PlayerCharacter* player,
+        RE::TESObjectWEAP* weapon,
+        bool wasLeftHand)
+    {
+        auto* magicTarget = player ? player->AsMagicTarget() : nullptr;
+        auto* activeEffects = magicTarget ? magicTarget->GetActiveEffectList() : nullptr;
+        if (!activeEffects || !weapon) {
+            return nullptr;
+        }
+
+        const auto wantedSource = wasLeftHand ?
+            RE::MagicSystem::CastingSource::kLeftHand :
+            RE::MagicSystem::CastingSource::kRightHand;
+
+        RE::ActiveEffect* handMatch = nullptr;
+        RE::ActiveEffect* fallback = nullptr;
+        float handRemaining = -1.0f;
+        float fallbackRemaining = -1.0f;
+
+        for (auto* activeEffect : *activeEffects) {
+            if (!activeEffect ||
+                !activeEffect->spell ||
+                !activeEffect->effect ||
+                !activeEffect->effect->baseEffect ||
+                activeEffect->flags.all(RE::ActiveEffect::Flag::kDispelled)) {
+                continue;
+            }
+
+            auto* baseEffect = activeEffect->effect->baseEffect;
+            if (baseEffect->GetArchetype() != RE::EffectArchetypes::ArchetypeID::kBoundWeapon ||
+                baseEffect->data.associatedForm != weapon) {
+                continue;
+            }
+
+            const bool timed = !baseEffect->data.flags.all(
+                RE::EffectSetting::EffectSettingData::Flag::kNoDuration);
+            const float remaining = timed ?
+                std::max(0.0f, activeEffect->duration - activeEffect->elapsedSeconds) :
+                activeEffect->duration;
+
+            if (activeEffect->castingSource == wantedSource) {
+                if (!handMatch || remaining > handRemaining) {
+                    handMatch = activeEffect;
+                    handRemaining = remaining;
+                }
+            }
+            else if (!fallback || remaining > fallbackRemaining) {
+                fallback = activeEffect;
+                fallbackRemaining = remaining;
+            }
+        }
+
+        return handMatch ? handMatch : fallback;
+    }
+
+    inline void RememberBoundThrowEffect(
+        ThrownInventoryTransferRecord& record,
+        RE::PlayerCharacter* player,
+        RE::TESObjectWEAP* weapon)
+    {
+        auto* activeEffect = GetBoundThrowEffect(player, weapon, record.wasLeftHand);
+        if (!activeEffect || !activeEffect->effect || !activeEffect->effect->baseEffect) {
+            return;
+        }
+
+        auto* baseEffect = activeEffect->effect->baseEffect;
+        record.boundMagicItem = activeEffect->spell;
+        record.boundEffect = activeEffect->effect;
+        record.boundEffectSource = activeEffect->source;
+        record.boundEffectMagnitude = activeEffect->magnitude;
+        record.boundCastingSource = activeEffect->castingSource;
+        record.boundEffectDual = activeEffect->flags.all(RE::ActiveEffect::Flag::kDual);
+        record.boundEffectTimed = !baseEffect->data.flags.all(
+            RE::EffectSetting::EffectSettingData::Flag::kNoDuration);
+        record.boundEffectRemaining = record.boundEffectTimed ?
+            std::max(0.0f, activeEffect->duration - activeEffect->elapsedSeconds) :
+            activeEffect->duration;
+        record.boundEffectTime = std::chrono::steady_clock::now();
+
+    }
+
+    inline bool RestoreBoundThrowEffect(
+        const ThrownInventoryTransferRecord& record,
+        RE::PlayerCharacter* player,
+        const char* reason)
+    {
+        (void)reason;
+        if (!player || !record.boundMagicItem || !record.boundEffect) {
+            return false;
+        }
+
+        float remaining = record.boundEffectRemaining;
+        if (record.boundEffectTimed &&
+            record.boundEffectTime != std::chrono::steady_clock::time_point{}) {
+            remaining -= std::chrono::duration<float>(
+                std::chrono::steady_clock::now() - record.boundEffectTime).count();
+
+            if (remaining <= 0.0f) {
+                return true;
+            }
+        }
+
+        auto* magicTarget = player->AsMagicTarget();
+        auto* activeEffects = magicTarget ? magicTarget->GetActiveEffectList() : nullptr;
+        if (!magicTarget || !activeEffects) {
+            return false;
+        }
+
+        for (auto* activeEffect : *activeEffects) {
+            if (activeEffect &&
+                activeEffect->spell == record.boundMagicItem &&
+                activeEffect->effect == record.boundEffect &&
+                activeEffect->castingSource == record.boundCastingSource &&
+                !activeEffect->flags.all(RE::ActiveEffect::Flag::kDispelled)) {
+                return true;
+            }
+        }
+
+        RE::MagicTarget::AddTargetData data{};
+        data.caster = player;
+        data.magicItem = record.boundMagicItem;
+        data.effect = record.boundEffect;
+        data.source = record.boundEffectSource;
+        data.magnitude = record.boundEffectMagnitude;
+        data.power = 1.0f;
+        data.castingSource = record.boundCastingSource;
+        data.areaTarget = false;
+        data.dualCasted = record.boundEffectDual;
+
+        if (!magicTarget->AddTarget(data)) {
+            return false;
+        }
+
+        activeEffects = magicTarget->GetActiveEffectList();
+        RE::ActiveEffect* restoredEffect = nullptr;
+        if (activeEffects) {
+            for (auto* activeEffect : *activeEffects) {
+                if (activeEffect &&
+                    activeEffect->spell == record.boundMagicItem &&
+                    activeEffect->effect == record.boundEffect &&
+                    activeEffect->castingSource == record.boundCastingSource &&
+                    !activeEffect->flags.all(RE::ActiveEffect::Flag::kDispelled)) {
+                    restoredEffect = activeEffect;
+                    break;
+                }
+            }
+        }
+
+        if (restoredEffect) {
+            restoredEffect->magnitude = record.boundEffectMagnitude;
+            if (record.boundEffectTimed) {
+                restoredEffect->duration = remaining;
+                restoredEffect->elapsedSeconds = 0.0f;
+            }
+        }
+
+        return true;
+    }
+
     inline void RememberThrowInv(
         RE::TESObjectREFR* thrownRef,
         RE::TESBoundObject* item,
@@ -606,6 +895,13 @@ namespace SaberThrow
         record.itemFormID = item->GetFormID();
         record.usedEquippedExtra = usedEquippedExtra;
         record.wasLeftHand = wasLeftHand;
+
+        if (auto* weapon = item->As<RE::TESObjectWEAP>(); weapon && weapon->IsBound()) {
+            RememberBoundThrowEffect(
+                record,
+                RE::PlayerCharacter::GetSingleton(),
+                weapon);
+        }
 
         std::scoped_lock lock(g_invTransferLock);
 
@@ -634,6 +930,7 @@ namespace SaberThrow
                 reason ? reason : "unknown");
         }
         g_invTransfers.clear();
+        ClearBoundThrowMemory();
     }
 
     inline bool HasThrowInvRecords()
@@ -646,6 +943,30 @@ namespace SaberThrow
     {
         std::scoped_lock lock(g_invTransferLock);
         return g_invTransfers;
+    }
+
+    inline bool GetThrowInvRecord(
+        RE::FormID thrownRefFormID,
+        ThrownInventoryTransferRecord& outRecord)
+    {
+        if (thrownRefFormID == 0) {
+            return false;
+        }
+
+        std::scoped_lock lock(g_invTransferLock);
+        const auto it = std::find_if(
+            g_invTransfers.begin(),
+            g_invTransfers.end(),
+            [thrownRefFormID](const ThrownInventoryTransferRecord& entry) {
+                return entry.thrownRefFormID == thrownRefFormID;
+            });
+
+        if (it == g_invTransfers.end()) {
+            return false;
+        }
+
+        outRecord = *it;
+        return true;
     }
 
     inline bool RemoveThrowInvRecord(RE::FormID thrownRefFormID)
@@ -666,7 +987,11 @@ namespace SaberThrow
                 }),
             g_invTransfers.end());
 
-        return g_invTransfers.size() != oldSize;
+        const bool removed = g_invTransfers.size() != oldSize;
+        if (removed) {
+            RemoveBoundThrowRecord(thrownRefFormID);
+        }
+        return removed;
     }
 
     inline RE::BGSEquipSlot* GetHandEquipSlot(bool leftHand)
@@ -738,7 +1063,10 @@ namespace SaberThrow
             return nullptr;
         }
 
-        auto* baseObj = thrownRef->GetObjectReference();
+        RE::TESBoundObject* baseObj = GetBoundThrowInvItem(thrownRef);
+        if (!baseObj) {
+            baseObj = thrownRef->GetObjectReference();
+        }
         if (!baseObj) {
             return nullptr;
         }
@@ -1093,6 +1421,21 @@ namespace SaberThrow
             }
         }
 
+        auto* equippedExtraList = FindPlayerThrowExtra(player, item, leftHand);
+
+        if (auto* weapon = item->As<RE::TESObjectWEAP>(); weapon && weapon->IsBound()) {
+            RememberThrowInv(thrownRef, item, equippedExtraList != nullptr, leftHand);
+
+            player->RemoveItem(
+                item,
+                1,
+                RE::ITEM_REMOVE_REASON::kRemove,
+                equippedExtraList,
+                nullptr);
+
+            return true;
+        }
+
         auto* tempContainer = GetThrowTemp();
         if (!tempContainer) {
             SKSE::log::warn(
@@ -1101,8 +1444,6 @@ namespace SaberThrow
                 kTempPlugin);
             return false;
         }
-
-        auto* equippedExtraList = FindPlayerThrowExtra(player, item, leftHand);
 
         player->RemoveItem(
             item,
@@ -1438,8 +1779,7 @@ namespace SaberThrow
         const char* reason)
     {
         auto* player = RE::PlayerCharacter::GetSingleton();
-        auto* tempContainer = GetThrowTemp();
-        if (!player || !tempContainer || record.itemFormID == 0) {
+        if (!player || record.itemFormID == 0) {
             return false;
         }
 
@@ -1450,6 +1790,20 @@ namespace SaberThrow
                 "[SaberThrow] proximity pickup failed: could not resolve stored item 0x{:08X} for dropped ref 0x{:08X}",
                 record.itemFormID,
                 record.thrownRefFormID);
+            return false;
+        }
+
+        const bool boundWeapon =
+            item->As<RE::TESObjectWEAP>() &&
+            item->As<RE::TESObjectWEAP>()->IsBound();
+
+        if (boundWeapon) {
+            RestoreBoundThrowEffect(record, player, reason);
+            return true;
+        }
+
+        auto* tempContainer = GetThrowTemp();
+        if (!tempContainer) {
             return false;
         }
 
@@ -1523,23 +1877,7 @@ namespace SaberThrow
         }
 
         ThrownInventoryTransferRecord record{};
-        bool found = false;
-        {
-            std::scoped_lock lock(g_invTransferLock);
-            const auto it = std::find_if(
-                g_invTransfers.begin(),
-                g_invTransfers.end(),
-                [thrownRefFormID](const ThrownInventoryTransferRecord& entry) {
-                    return entry.thrownRefFormID == thrownRefFormID;
-                });
-
-            if (it != g_invTransfers.end()) {
-                record = *it;
-                found = true;
-            }
-        }
-
-        if (!found) {
+        if (!GetThrowInvRecord(thrownRefFormID, record)) {
             return false;
         }
 
